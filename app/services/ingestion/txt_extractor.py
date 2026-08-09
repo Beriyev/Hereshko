@@ -11,7 +11,7 @@ def extract_txt(file_path: Path, notebook_id: str) -> Document:
         with open(file_path,'r',encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
-        raise IngestionError(f"Failed to read TXT file: {e}")
+        raise IngestionError(f"Failed to read TXT file: {e}") from e
         
 
     document = Document(
