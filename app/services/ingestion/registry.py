@@ -12,7 +12,9 @@ file_ingester_mapping: dict[SourceType, Callable[[Path,str], Document]] = {
 
 extension_to_source_type_mapping: dict[str, SourceType] = {
     ".txt": SourceType.TXT,
-    ".pdf": SourceType.PDF
+    ".pdf": SourceType.PDF,
+    ".docx": SourceType.DOCX,
+    ".pptx": SourceType.PPTX
 }
 
 def get_ingester(file_extension: SourceType) -> Callable[[Path, str], Document]:

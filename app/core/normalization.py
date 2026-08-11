@@ -8,6 +8,7 @@ class SourceType(str, Enum):
     TXT = "txt"
     WEBSITE = "website"
     YOUTUBE = "youtube"
+    PPTX = "pptx"
 
 class Document(BaseModel):
     document_id: str
