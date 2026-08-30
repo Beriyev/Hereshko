@@ -9,3 +9,7 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     document_id: str
     status: str
+
+class WebsiteIngestResponse(BaseModel):
+    document_ids: list[str]
+    status: str

@@ -41,7 +41,7 @@ def extract_pptx(file_path: Path, notebook_id: str) -> Document:
         raise IngestionError("No extractable text found in PPTX (may be an empty presentation)")
 
     return Document(
-       document_id = str(uuid.uuid4()),
+        document_id = str(uuid.uuid4()),
         notebook_id = notebook_id,
         content = content,
         source_type = SourceType.PPTX,

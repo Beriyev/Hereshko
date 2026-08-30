@@ -36,9 +36,9 @@ def is_same_domain(base: str, url: str) -> bool:
     base_host = base_parsed.hostname
     url_host = base_url.hostname
 
-    if base_host is None:
+    if base_host is None or url_host is None:
         return False
-    if base_host == url_host:
+    if base_host == url_host or url_host.endswith("."+base_host):
         return True
     else:
         return False
