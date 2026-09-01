@@ -34,7 +34,7 @@ async def fetch_dynamic(url: str) -> str:
 
 async def fetch(url: str) -> str:
     html,status = await fetch_static(url=url)
-    if (status not in (0,200)) or html=="" and status==0:
+    if (status not in (0,200))  or html=="" and status==0:
         return ""
     if len(html) < STATIC_LENGTH_THRESHOLD:
         print("Static failed, using Dynamic page fetching")

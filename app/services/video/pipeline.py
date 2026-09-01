@@ -70,6 +70,7 @@ def get_metadata(video_url: str) -> dict:
             info = ydl.extract_info(url=video_url,download=False)
     except DownloadError as e:
         raise IngestionError(e) from e
+    
     return {
         "title": info.get("title"),
         "channel": info.get("channel"),
