@@ -14,8 +14,7 @@ def chunker(document: Document, chunk_size: int = 612, chunk_overlap: int = 73) 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
-        length_function=get_token_count,
-        token_count_func=get_token_count
+        length_function=get_token_count
     )
 
     boundaries = document.raw_metadata.get("boundaries",[])
