@@ -12,3 +12,6 @@ class ChunkingError(HereshkoError):
 
 class RetrievalError(HereshkoError): 
     pass
+
+class ChatError(HereshkoError):
+    pass

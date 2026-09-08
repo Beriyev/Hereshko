@@ -12,3 +12,4 @@ class Chunk(BaseModel):
     paragraph_index: int | None = None
     slide_number: int | None = None
     metadata: dict = {}
+    source_name: str | None = None

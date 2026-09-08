@@ -81,7 +81,7 @@ class WeaviateService:
                 weaviate.classes.config.Property(
                     name = "metadata",
                     data_type = weaviate.classes.config.DataType.OBJECT
-                ),    
+                )
             ]
         )
         print("Collection created successfully.")
@@ -107,7 +107,7 @@ class WeaviateService:
                         "paragraph_index" : chunk.paragraph_index,
                         "slide_number" : chunk.slide_number,
                         "timestamp_seconds" : chunk.timestamp_seconds,
-                        "source_name" : document.title,
+                        "source_name" : chunk.source_name,
                         "metadata" : chunk.metadata
                     },
                     vector=embedding
@@ -149,7 +149,8 @@ class WeaviateService:
                 paragraph_index=cast(int,obj.properties.get("paragraph_index")),
                 slide_number=cast(int,obj.properties.get("slide_number")),
                 timestamp_seconds=cast(float,obj.properties.get("timestamp_seconds")),
-                metadata=cast(dict,obj.properties.get("metadata") or {})
+                metadata=cast(dict,obj.properties.get("metadata") or {}),
+                source_name=cast(str,obj.properties.get("source_name"))
             )
             results.append(chunk)
 
