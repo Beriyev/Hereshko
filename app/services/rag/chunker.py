@@ -1,7 +1,7 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 from app.core.chunking import Chunk
-from app.core.normalization import Document
+from app.core.normalization import Document, SourceType
 import uuid
 
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3.8-27B")
@@ -19,6 +19,9 @@ def chunker(document: Document, chunk_size: int = 612, chunk_overlap: int = 73) 
 
     boundaries = document.raw_metadata.get("boundaries",[])
     chunks: list[Chunk] = []
+    metadata = {}
+    if document.source_type in (SourceType.YOUTUBE, SourceType.WEBSITE):
+        metadata["url"] = document.source_identifier
     if not boundaries:
         boundaries = [{"start":0,"end":len(document.content)}]
 
@@ -36,7 +39,9 @@ def chunker(document: Document, chunk_size: int = 612, chunk_overlap: int = 73) 
                     page_number=boundary.get("page_number"),
                     paragraph_index=boundary.get("paragraph_index"),
                     slide_number=boundary.get("slide_number"),
-                    timestamp_seconds=boundary.get("timestamp_seconds")
+                    timestamp_seconds=boundary.get("timestamp_seconds"),
+                    source_name=document.title,
+                    metadata=metadata
                 )
             )
     return chunks
