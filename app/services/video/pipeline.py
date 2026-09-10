@@ -68,6 +68,8 @@ def get_metadata(video_url: str) -> dict:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: #type: ignore[arg-type]
             info = ydl.extract_info(url=video_url,download=False)
+            if info is None:
+                raise IngestionError(f"No extractable info returned for: {video_url}")
     except DownloadError as e:
         raise IngestionError(e) from e
     
