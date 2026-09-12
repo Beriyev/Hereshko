@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     groq_whisper_model: str = "whisper-large-v3-turbo"
     groq_llm_model: str = "qwen/qwen3.8-27b"
 
+    yt_player_client: str = "android,tv"
+    yt_js_runtime: str = "deno"
+    yt_deno_path: str = ""
+
     gemini_api_key: SecretStr = SecretStr("")
     gemini_embed_model: str = "gemini-embedding-001"
 

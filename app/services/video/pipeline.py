@@ -1,6 +1,5 @@
 from typing import Any
 from app.config import settings
-import tempfile
 from pathlib import Path
 import shutil
 import yt_dlp
@@ -8,17 +7,42 @@ from yt_dlp.utils import DownloadError
 from app.core.exceptions import IngestionError
 from app.clients.groq_client import groq_client
 
+
+def _default_deno_path() -> str:
+    for candidate in (
+        Path.home() / ".deno" / "bin" / "deno.exe",
+        Path.home() / ".deno" / "bin" / "deno",
+    ):
+        if candidate.exists():
+            return str(candidate)
+    which = shutil.which("deno")
+    return which or ""
+
+
 def download_yt_audio(video_url: str, output_dir: Path) -> Path:
-    ydl_opts = {
-        'format' : 'bestaudio/best',
-        'outtmpl': str(output_dir / "audio.%(ext)s"),
-        'postprocessors' : [{
-            'key' : 'FFmpegExtractAudio',
-            'preferredcodec' : 'mp3',
-            'preferredquality' : '192'
+    ydl_opts: dict[str, Any] = {
+        "format": "bestaudio/best",
+        "outtmpl": str(output_dir / "audio.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "64",
         }],
-        'postprocessor_args' : ['-ar','16000','-ac','1']
+        "postprocessor_args": ["-ar", "16000", "-ac", "1"],
     }
+    if settings.yt_player_client:
+        clients = [c.strip() for c in settings.yt_player_client.split(",") if c.strip()]
+        ydl_opts["extractor_args"] = {"youtube": [f"player_client={c}" for c in clients]}
+    if settings.yt_js_runtime:
+        runtime = settings.yt_js_runtime
+        if runtime == "deno":
+            deno_path = settings.yt_deno_path or _default_deno_path()
+            ydl_opts["js_runtimes"] = {"deno": {"path": deno_path}} if deno_path else {"deno": {}}
+        else:
+            ydl_opts["js_runtimes"] = {runtime: {}}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
             ydl.download([video_url])
@@ -30,9 +54,18 @@ def download_yt_audio(video_url: str, output_dir: Path) -> Path:
         raise IngestionError("yt-dlp reported success but no audio file was produced")
     return audio_files[0]
 
+GROQ_UPLOAD_LIMIT_BYTES = 25 * 1024 * 1024
+
 def get_transcript(input_dir: Path) -> dict:
     if not input_dir.exists():
         raise FileNotFoundError("Audio not found.")
+
+    size = input_dir.stat().st_size
+    if size > GROQ_UPLOAD_LIMIT_BYTES:
+        raise IngestionError(
+            f"Video audio is too large to transcribe ({size / (1024 * 1024):.1f} MB exceeds "
+            f"Groq's {GROQ_UPLOAD_LIMIT_BYTES // (1024 * 1024)} MB upload limit)"
+        )
     
     with open(input_dir,"rb") as f:
         response = groq_client.audio.transcriptions.create(
@@ -64,7 +97,22 @@ def get_transcript(input_dir: Path) -> dict:
     }
 
 def get_metadata(video_url: str) -> dict:
-    ydl_opts ={"quiet":True, "no_warnings":True, "skip_download":True}
+    ydl_opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "skip_download": True,
+    }
+    if settings.yt_player_client:
+        clients = [c.strip() for c in settings.yt_player_client.split(",") if c.strip()]
+        ydl_opts["extractor_args"] = {"youtube": [f"player_client={c}" for c in clients]}
+    if settings.yt_js_runtime:
+        runtime = settings.yt_js_runtime
+        if runtime == "deno":
+            deno_path = settings.yt_deno_path or _default_deno_path()
+            ydl_opts["js_runtimes"] = {"deno": {"path": deno_path}} if deno_path else {"deno": {}}
+        else:
+            ydl_opts["js_runtimes"] = {runtime: {}}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: #type: ignore[arg-type]
             info = ydl.extract_info(url=video_url,download=False)

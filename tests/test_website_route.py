@@ -40,7 +40,7 @@ class SiteHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body.encode())
 
-    def log_message(self, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 
@@ -53,7 +53,7 @@ class EmptyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 
@@ -62,7 +62,7 @@ class DeadHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def log_message(self, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 

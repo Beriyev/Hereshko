@@ -39,7 +39,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body.encode())
 
-    def log_message(self, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 

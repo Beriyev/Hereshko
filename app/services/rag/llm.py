@@ -49,7 +49,8 @@ def generate_answer(chat_request: ChatRequest, retrieved_chunks: list[Chunk], hi
 
     chat_completion = client.chat.completions.create(
         model = settings.groq_llm_model,
-        messages=messages_list
+        messages=messages_list,
+        max_tokens=800
     )
 
     answer_content = chat_completion.choices[0].message.content
@@ -72,7 +73,7 @@ def generate_answer(chat_request: ChatRequest, retrieved_chunks: list[Chunk], hi
             marker=num,
             chunk_id=chunk.chunk_id,
             content=chunk.content,
-            source_type=str(chunk.position_type),
+            source_type=chunk.position_type.value,
             source_name=chunk.source_name,
             page_number=chunk.page_number,
             paragraph_index=chunk.paragraph_index,

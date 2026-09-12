@@ -6,6 +6,7 @@ from app.config import settings
 from app.core.chunking import Chunk
 from typing import cast
 from app.core.normalization import Document, SourceType
+import json
 
 class WeaviateService:
     def __init__(self) -> None:
@@ -22,6 +23,7 @@ class WeaviateService:
                 )
             }
         )
+        self.create_collection()
 
     def close(self) -> None:
         self.client.close()
@@ -80,7 +82,7 @@ class WeaviateService:
                 ),  
                 weaviate.classes.config.Property(
                     name = "metadata",
-                    data_type = weaviate.classes.config.DataType.OBJECT
+                    data_type = weaviate.classes.config.DataType.TEXT
                 )
             ]
         )
@@ -102,13 +104,13 @@ class WeaviateService:
                         "document_id" : chunk.document_id,
                         "notebook_id" : chunk.notebook_id,
                         "content" : chunk.content,
-                        "position_type" : str(chunk.position_type),
+                        "position_type" : chunk.position_type.value,
                         "page_number" : chunk.page_number,
                         "paragraph_index" : chunk.paragraph_index,
                         "slide_number" : chunk.slide_number,
                         "timestamp_seconds" : chunk.timestamp_seconds,
                         "source_name" : chunk.source_name,
-                        "metadata" : chunk.metadata
+                        "metadata" : json.dumps(chunk.metadata)
                     },
                     vector=embedding
                 )
@@ -149,7 +151,7 @@ class WeaviateService:
                 paragraph_index=cast(int,obj.properties.get("paragraph_index")),
                 slide_number=cast(int,obj.properties.get("slide_number")),
                 timestamp_seconds=cast(float,obj.properties.get("timestamp_seconds")),
-                metadata=cast(dict,obj.properties.get("metadata") or {}),
+                metadata=cast(dict,json.loads(cast(str,obj.properties.get("metadata") or "{}"))),
                 source_name=cast(str,obj.properties.get("source_name"))
             )
             results.append(chunk)
