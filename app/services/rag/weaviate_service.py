@@ -2,8 +2,10 @@ import weaviate
 from weaviate.classes.init import Auth, AdditionalConfig, Timeout 
 from weaviate.classes.data import DataObject
 from weaviate.classes.query import Rerank, Filter
+from weaviate.classes.config import Tokenization
 from app.config import settings
 from app.core.chunking import Chunk
+from app.core.exceptions import IngestionError, RetrievalError
 from typing import cast
 from app.core.normalization import Document, SourceType
 import json
@@ -42,15 +44,18 @@ class WeaviateService:
             properties=[
                 weaviate.classes.config.Property(
                     name = "chunk_id",
-                    data_type = weaviate.classes.config.DataType.TEXT
+                    data_type = weaviate.classes.config.DataType.TEXT,
+                    tokenization = Tokenization.FIELD
                 ),
                 weaviate.classes.config.Property(
                     name = "document_id",
-                    data_type = weaviate.classes.config.DataType.TEXT
+                    data_type = weaviate.classes.config.DataType.TEXT,
+                    tokenization = Tokenization.FIELD
                 ),
                 weaviate.classes.config.Property(
                     name = "notebook_id",
-                    data_type = weaviate.classes.config.DataType.TEXT
+                    data_type = weaviate.classes.config.DataType.TEXT,
+                    tokenization = Tokenization.FIELD
                 ),
                 weaviate.classes.config.Property(
                     name = "content",
@@ -88,6 +93,10 @@ class WeaviateService:
         )
         print("Collection created successfully.")
 
+    def reset_collection(self) -> None:
+        self.client.collections.delete("Chunks")
+        self.create_collection()
+
     def insert_chunks(self, document: Document, chunks: list[Chunk], embeddings: list[list[float]]) -> int:
         collection = self.client.collections.get("Chunks")
 
@@ -119,24 +128,27 @@ class WeaviateService:
         response = collection.data.insert_many(data_sets)
 
         if response.has_errors:
-            print(f"Error in the insertion of Data: {response.errors}")
+            raise IngestionError(f"Failed to insert chunks into Weaviate: {response.errors}")
 
         return len(response.uuids)
 
     def retrieve_chunks(self, query: str, embedding: list[float], limit: int, notebook_id: str) -> list[Chunk]:
         collection = self.client.collections.get("Chunks")
 
-        response = collection.query.hybrid(
-            query=query,
-            alpha=0.75,
-            limit=limit,
-            vector=embedding,
-            rerank=Rerank(
-                prop="content",
-                query=query
-            ),
-            filters=Filter.by_property("notebook_id").equal(notebook_id)
-        )
+        try:
+            response = collection.query.hybrid(
+                query=query,
+                alpha=0.75,
+                limit=limit,
+                vector=embedding,
+                rerank=Rerank(
+                    prop="content",
+                    query=query
+                ),
+                filters=Filter.by_property("notebook_id").equal(notebook_id)
+            )
+        except Exception as e:
+            raise RetrievalError(f"Failed to retrieve chunks from Weaviate: {e}") from e
 
         results = []
 

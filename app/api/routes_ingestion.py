@@ -1,9 +1,9 @@
 from fastapi import APIRouter, UploadFile, Form, HTTPException
 from app.schemas.ingestion import IngestResponse, WebsiteIngestResponse
 from pathlib import Path
-from app.services.ingestion.registry import file_ingester_mapping, get_ingester, extension_to_source_type_mapping
+from app.services.ingestion.registry import get_ingester, extension_to_source_type_mapping
 from app.services.ingestion.website_extractor import extract_website
-from app.core.exceptions import IngestionError, UnsupportedSourceError
+from app.core.exceptions import IngestionError
 import tempfile
 from app.services.ingestion.video_extractor import extract_youtube
 

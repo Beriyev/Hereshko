@@ -72,7 +72,6 @@ def get_transcript(input_dir: Path) -> dict:
             model="whisper-large-v3-turbo",
             response_format="verbose_json",
             file=f,
-            language="en",
             timestamp_granularities=["segment"]
         )
 
