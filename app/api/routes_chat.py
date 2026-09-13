@@ -1,22 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.rag.embeddings import embed_texts
-from app.services.rag.weaviate_service import WeaviateService
+from app.services.rag.embeddings import embed_queries
+from app.clients.weaviate_client import get_weaviate_service
 from app.services.rag.memory import ConversationStore
+from app.services.rag.weaviate_service import WeaviateService
 from app.services.rag.llm import generate_answer
 from app.core.exceptions import ChatError, RetrievalError, HereshkoError
 
 router = APIRouter()
 
-weaviate_service = WeaviateService()
-
 conversation_store = ConversationStore()
 
 @router.post("/chat",response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends(get_weaviate_service)) -> ChatResponse:
 
     try:
-        embeddings = embed_texts([request.query])[0]
+        embeddings = embed_queries(request.query)
     except HereshkoError as e:
         raise HTTPException(status_code=500,detail=f"Embedding failed: {e}")
 
@@ -39,6 +38,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
         generated_answer = generate_answer(chat_request=request,retrieved_chunks=retrieved_chunks,history=history)
     except ChatError as e:
         raise HTTPException(status_code=500,detail=f"Chat failed: {e}")
+
+    if request.session_id:
+        conversation_store.get_or_create(session_id=request.session_id,notebook_id=request.notebook_id)
 
     if request.session_id:
         conversation_store.add_turn(session_id=request.session_id,user_msg=request.query,assistant_msg=generated_answer.answer)
