@@ -10,7 +10,7 @@ def extract_youtube(url: str, notebook_id: str) -> Document:
     try:
         audio_path = download_yt_audio(video_url=url,output_dir=temp_dir)
         metadata = get_metadata(video_url=url)
-        transcript = get_transcript(input_dir=audio_path)
+        transcript = get_transcript(audio_path=audio_path)
 
         texts = []
         boundaries = []

@@ -2,8 +2,10 @@ from typing import Any
 from app.config import settings
 from pathlib import Path
 import shutil
+import tempfile
 import yt_dlp
 from yt_dlp.utils import DownloadError
+from ffmpy import FFmpeg, FFExecutableNotFoundError, FFRuntimeError
 from app.core.exceptions import IngestionError
 from app.clients.groq_client import groq_client
 
@@ -54,46 +56,92 @@ def download_yt_audio(video_url: str, output_dir: Path) -> Path:
         raise IngestionError("yt-dlp reported success but no audio file was produced")
     return audio_files[0]
 
-GROQ_UPLOAD_LIMIT_BYTES = 25 * 1024 * 1024
+CHUNK_SECONDS = 30 * 60
 
-def get_transcript(input_dir: Path) -> dict:
-    if not input_dir.exists():
+def chunk_audio(audio_path: Path, chunk_seconds: int = CHUNK_SECONDS) -> list[Path]:
+    chunk_dir = Path(tempfile.mkdtemp(prefix="hereshko_chunks_",dir=audio_path.parent))
+    try:
+        FFmpeg(
+            global_options=["-hide_banner","-loglevel","error"],
+            inputs={str(audio_path):None},
+            outputs={
+                str(chunk_dir / "chunk_%03d.mp3") : [
+                    "-f", "segment",
+                    "-segment_time", str(chunk_seconds),
+                    "-c", "copy", "-reset_timestamps", "1"
+                ]
+            }
+        ).run()
+    except FFExecutableNotFoundError as e:
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+        raise IngestionError("ffmpeg executable not found; install ffmpeg and add it to PATH") from e
+    except FFRuntimeError as e:
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+        raise IngestionError(f"ffmpeg failed to split audio: {e}") from e
+
+    chunks = sorted(chunk_dir.glob("chunk_*.mp3"))
+    if not chunks:
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+        raise IngestionError("ffmpeg produced no audio chunks")
+    return chunks
+
+def get_transcript(audio_path: Path) -> dict:
+    if not audio_path.exists():
         raise FileNotFoundError("Audio not found.")
 
-    size = input_dir.stat().st_size
-    if size > GROQ_UPLOAD_LIMIT_BYTES:
-        raise IngestionError(
-            f"Video audio is too large to transcribe ({size / (1024 * 1024):.1f} MB exceeds "
-            f"Groq's {GROQ_UPLOAD_LIMIT_BYTES // (1024 * 1024)} MB upload limit)"
-        )
-    
-    with open(input_dir,"rb") as f:
-        response = groq_client.audio.transcriptions.create(
-            model="whisper-large-v3-turbo",
-            response_format="verbose_json",
-            file=f,
-            timestamp_granularities=["segment"]
-        )
+    audio_chunks = chunk_audio(audio_path)
+    chunk_dir = audio_chunks[0].parent
 
-    texts: list[dict[str,Any]] = []
-    data = response.model_dump()
+    try:
+        offset = 0.0
+        duration = 0.0
+        texts = []
+        segments = []
+        language = None
+        task = None
 
-    for segment in data["segments"]:
-        texts.append({
-            "text" : segment["text"],
-            "start" : segment["start"],
-            "end" : segment["end"]
-        })
-    if not texts:
-        raise IngestionError("Groq returned no transcript segments")
-    
-    return {
-        "text" : data.get("text",""),
-        "language" : data.get("language"),
-        "duration" : data.get("duration"),
-        "task" : data.get("task"),
-        "segments" : texts
-    }
+        for chunk in audio_chunks:
+            with open(chunk,"rb") as f:
+                response = groq_client.audio.transcriptions.create(
+                    model="whisper-large-v3-turbo",
+                    response_format="verbose_json",
+                    file=f,
+                    timestamp_granularities=["segment"]
+                )
+            data = response.model_dump()
+
+            for segment in data["segments"]:
+                text = segment["text"].strip()
+                if text:
+                    texts.append(text)
+                    segments.append({
+                        "text" : text,
+                        "start" : segment["start"] + offset,
+                        "end" : segment["end"] + offset
+                    })
+
+            if language is None:
+                language = data.get("language")
+            if task is None:
+                task = data.get("task")
+
+            chunk_duration = data.get("duration") or 0.0
+            offset += chunk_duration
+            duration += chunk_duration
+
+        if not segments:
+            raise IngestionError("Groq returned no segments.")
+
+        return {
+            "text" : "\n".join(texts),
+            "language" : language,
+            "duration" : duration,
+            "task" : task,
+            "segments" : segments
+        }
+    finally:
+        shutil.rmtree(path=chunk_dir,ignore_errors=True)
+
 
 def get_metadata(video_url: str) -> dict:
     ydl_opts: dict[str, Any] = {
