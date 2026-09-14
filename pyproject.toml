@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "ddgs>=9.16.0",
     "fastapi>=0.141.1",
     "ffmpy>=1.0.0",
     "google-api-python-client>=2.198.0",
@@ -18,6 +19,7 @@ dependencies = [
     "langchain-core>=1.5.3",
     "langchain-google-genai>=4.3.3",
     "langchain-text-splitters>=1.1.2",
+    "mcp[cli]>=2.2.0",
     "pdfplumber>=0.11.10",
     "playwright>=1.62.0",
     "pydantic>=2.13.4",
