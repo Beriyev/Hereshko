@@ -26,5 +26,7 @@ class Settings(BaseSettings):
     weaviate_url: str = "http://localhost:8080"
     weaviate_api_key: str = ""
 
+    mcp_server_url: str = "http://127.0.0.1:8765/mcp"
+
 
 settings = Settings()
