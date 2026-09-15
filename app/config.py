@@ -27,6 +27,6 @@ class Settings(BaseSettings):
     weaviate_api_key: str = ""
 
     mcp_server_url: str = "http://127.0.0.1:8765/mcp"
-
+    web_tool_max_iterations: int = 4
 
 settings = Settings()
