@@ -6,6 +6,8 @@ from app.services.rag.memory import ConversationStore
 from app.services.rag.weaviate_service import WeaviateService
 from app.services.rag.llm import generate_answer
 from app.core.exceptions import ChatError, RetrievalError, HereshkoError
+import asyncio
+from app.services.rag.web_agent import gather_web_sources
 
 router = APIRouter()
 
@@ -35,7 +37,13 @@ async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends
         history = None
 
     try:
-        generated_answer = generate_answer(chat_request=request,retrieved_chunks=retrieved_chunks,history=history)
+        web_chunks = await gather_web_sources(query=request.query,context_chunks=retrieved_chunks,notebook_id=request.notebook_id)
+    except Exception:
+        web_chunks = []
+    all_chunks = retrieved_chunks+web_chunks
+
+    try:
+        generated_answer = await asyncio.to_thread(generate_answer,chat_request=request,retrieved_chunks=all_chunks,history=history)
     except ChatError as e:
         raise HTTPException(status_code=500,detail=f"Chat failed: {e}")
 
