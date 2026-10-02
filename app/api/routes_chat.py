@@ -32,7 +32,7 @@ async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends
         raise HTTPException(status_code=500,detail=f"Retrieval failed: {e}")
 
     if request.session_id:
-        history = conversation_store.get_recent(session_id=request.session_id,n=8)
+        history = conversation_store.get_recent(session_id=request.session_id,n=16)
     else:
         history = None
 

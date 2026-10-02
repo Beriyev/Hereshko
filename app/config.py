@@ -20,11 +20,8 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = SecretStr("")
     gemini_embed_model: str = "gemini-embedding-001"
 
-    jina_ai_api_key: str = ""
-
     tavily_api_key: str = ""
     weaviate_url: str = "http://localhost:8080"
-    weaviate_api_key: str = ""
 
     mcp_server_url: str = "http://127.0.0.1:8765/mcp"
     web_tool_max_iterations: int = 4

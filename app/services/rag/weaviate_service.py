@@ -1,9 +1,8 @@
 import weaviate
-from weaviate.classes.init import Auth, AdditionalConfig, Timeout 
+from weaviate.classes.init import AdditionalConfig, Timeout 
 from weaviate.classes.data import DataObject
 from weaviate.classes.query import Rerank, Filter
 from weaviate.classes.config import Tokenization
-from app.config import settings
 from app.core.chunking import Chunk
 from app.core.exceptions import IngestionError, RetrievalError
 from typing import cast
@@ -12,18 +11,14 @@ import json
 
 class WeaviateService:
     def __init__(self) -> None:
-        auth = Auth.api_key(api_key=settings.weaviate_api_key)
-        self.client = weaviate.connect_to_weaviate_cloud(
-            cluster_url=settings.weaviate_url,
-            auth_credentials=auth,
+        self.client = weaviate.connect_to_local(
             additional_config=AdditionalConfig(
-                timeout=Timeout(init=120,insert=120,query=30)
-            ),
-            headers={
-                "X-JinaAI-Api-Key" : (
-                    settings.jina_ai_api_key
+                timeout=Timeout(
+                    init = 120,
+                    insert = 120,
+                    query = 30
                 )
-            }
+            )
         )
         self.create_collection()
 
@@ -38,9 +33,7 @@ class WeaviateService:
         self.client.collections.create(
             name = "Chunks",
             vector_config = weaviate.classes.config.Configure.Vectors.self_provided(),
-            reranker_config = weaviate.classes.config.Configure.Reranker.jinaai(
-                model="jina-reranker-v2-base-multilingual"
-            ),
+            reranker_config = weaviate.classes.config.Configure.Reranker.transformers(),
             properties=[
                 weaviate.classes.config.Property(
                     name = "chunk_id",

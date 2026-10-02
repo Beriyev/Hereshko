@@ -3,6 +3,8 @@ import threading
 from datetime import datetime, timezone
 
 class ConversationStore:
+    MAX_MESSAGES = 16
+
     def __init__(self):
         self.conversations: dict[str, Conversation] = {}
         self.lock = threading.Lock()
@@ -26,6 +28,7 @@ class ConversationStore:
                 return
             conv.messages.append(ChatMessage(role=ChatRole.USER,content=user_msg))
             conv.messages.append(ChatMessage(role=ChatRole.ASSISTANT,content=assistant_msg))
+            conv.messages = conv.messages[-self.MAX_MESSAGES:]
 
     def get_recent(self, session_id: str, n: int) -> list[ChatMessage]:
         with self.lock:

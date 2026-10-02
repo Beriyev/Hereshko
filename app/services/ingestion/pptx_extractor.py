@@ -1,57 +1,150 @@
-from pptx import Presentation
-from app.core.normalization import Document, SourceType
+import tempfile
 import uuid
-from pathlib import Path
 from datetime import datetime, timezone
-from app.core.exceptions import IngestionError
+from pathlib import Path
+import paddle
 
-def extract_pptx(file_path: Path, notebook_id: str) -> Document:
-    texts = []
-    boundaries = []
-    offset = 0
-    slide_number = 1
-    slides_count = 0
-    content = ""
+import pythoncom
+import win32com.client
+from paddleocr import PaddleOCR
+
+from app.core.exceptions import IngestionError
+from app.core.normalization import Document, SourceType
+
+_ocr = None
+
+def get_ocr():
+    global _ocr
+
+    if _ocr is None:
+        if paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count()>0:
+            paddle.device.set_device("gpu:0")
+        else:
+            paddle.device.set_device("cpu")
+
+        _ocr = PaddleOCR(
+            lang="en",
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False
+        )
+
+    return _ocr
+
+def convert_pptx_to_pdf(file_path: Path, output_pdf: Path) -> None:
+    powerpoint = None
+    presentation = None
+
+    pythoncom.CoInitialize()
 
     try:
-        presentation = Presentation(str(file_path))
-        slides_count = len(presentation.slides)
-        for slide in presentation.slides:
-            slide_text = ""
-            for shape in slide.shapes:
-                if shape.has_text_frame:
-                    text = getattr(shape, 'text', "")
-                    if text:
-                        slide_text += text + "\n"
-            if slide_text.strip():
-                slide_text = slide_text.strip()
-                text_size = len(slide_text)
-                boundaries.append({
-                    "slide_number": slide_number,
-                    "start": offset,
-                    "end": offset + text_size
-                })
-                texts.append(slide_text)
-                offset += text_size+1
-            slide_number += 1
-    except Exception as e:
-        raise IngestionError(f"Error occurred while extracting PPTX file: {str(e)}")
-    content = "\n".join(texts) + "\n" if texts else ""
-    if not content.strip():
-        raise IngestionError("No extractable text found in PPTX (may be an empty presentation)")
+        powerpoint = win32com.client.DispatchEx("PowerPoint.Application")
+        powerpoint.Visible = True
+        powerpoint.DisplayAlerts = 1
 
-    return Document(
-        document_id = str(uuid.uuid4()),
-        notebook_id = notebook_id,
-        content = content,
-        source_type = SourceType.PPTX,
-        source_identifier = file_path.name,
-        title = file_path.stem,
-        ingested_at = datetime.now(timezone.utc),
-        raw_metadata = {
-            "original_filename": file_path.name,
-            "file_size_bytes": file_path.stat().st_size,
-            "slides_count": slides_count,
-            "boundaries": boundaries
-        }
-    )
+        presentation = powerpoint.Presentations.Open(
+            str(file_path),
+            ReadOnly = True,
+            WithWindow = False,
+        )
+        # 32 means PDF in PowerPoint's PpSaveAsFileType enum.
+        presentation.SaveAs(
+            str(output_pdf),
+            32,
+        )
+    except Exception as e:
+        raise IngestionError(
+            f"Error: {e}"
+        ) from e
+    finally:
+        if presentation is not None:
+            try:
+                presentation.close()
+            except Exception:
+                pass
+
+        if powerpoint is not None:
+            try:
+                powerpoint.Quit()
+            except Exception:
+                pass
+        pythoncom.CoUninitialize()
+
+def extract_pptx(file_path: Path, notebook_id: str) -> Document:
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="hereshko_pptx_"
+        ) as temp_dir:
+            pdf_path = Path(temp_dir) / f"{file_path.stem}.pdf"
+
+            convert_pptx_to_pdf(file_path=file_path,output_pdf=pdf_path)
+
+            ocr = get_ocr()
+            ocr_results = ocr.predict(str(pdf_path))
+
+            slide_texts = []
+            boundaries = []
+            offset = 0
+            slide_count = 0
+            start = 0
+            end = 0
+
+            for slide_number, slide_text in enumerate(ocr_results,start=1):
+                slide_count+=1
+                text = []
+                for texts in slide_text["rec_texts"]:
+                    if texts and texts.strip():
+                        text.append(texts)
+
+                text = "\n".join(text)
+
+                if not text:
+                    continue
+
+                start = offset
+                end = start+len(text)
+
+                slide_texts.append(text)
+
+                boundaries.append(
+                    {
+                        "slide_number" : slide_number,
+                        "start" : start,
+                        "end" : end
+                    }
+                )
+
+                offset = end+1
+
+        content = "\n".join(slide_texts)
+
+        if not content.strip():
+            raise IngestionError(
+                "PaddleOCR found no text in the rendered PPTX"
+            )
+
+        return Document(
+            document_id=str(uuid.uuid4()),
+            notebook_id=notebook_id,
+            content=content,
+            source_type=SourceType.PPTX,
+            source_identifier=file_path.name,
+            title=file_path.stem,
+            ingested_at=datetime.now(timezone.utc),
+            raw_metadata={
+                "original_filename": file_path.name,
+                "file_size_bytes": file_path.stat().st_size,
+                "slides_count": slide_count,
+                "renderer": "microsoft-powerpoint",
+                "ocr_engine": "paddleocr",
+                "boundaries": boundaries,
+            },
+        )
+
+    except IngestionError:
+        raise
+
+    except Exception as e:
+        raise IngestionError(
+            f"Error: {e}" 
+        ) from e
