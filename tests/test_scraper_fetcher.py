@@ -1,9 +1,9 @@
 import asyncio
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import AsyncMock, patch
 
 from app.services.scraper.fetcher import fetch, fetch_static, fetch_dynamic
-from app.services.scraper.scraper_config import STATIC_LENGTH_THRESHOLD
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -67,7 +67,6 @@ def test_fetch_static_short_page():
         html, status = asyncio.run(fetch_static(base + "/short"))
     assert html != ""
     assert status == 200
-    assert len(html) < STATIC_LENGTH_THRESHOLD
     print("test_fetch_static_short_page OK")
 
 
@@ -78,11 +77,26 @@ def test_fetch_good_returns_html():
     print("test_fetch_good_returns_html OK")
 
 
-def test_fetch_short_falls_back_to_dynamic():
+def test_fetch_short_page_stays_static():
     with TestServer() as base:
         html = asyncio.run(fetch(base + "/short"))
     assert "hi" in html and html != ""
-    print("test_fetch_short_falls_back_to_dynamic OK")
+    print("test_fetch_short_page_stays_static OK")
+
+
+def test_fetch_empty_static_page_falls_back_to_dynamic():
+    rendered_html = "<html><body><main>Rendered content</main></body></html>"
+    with patch(
+        "app.services.scraper.fetcher.fetch_static",
+        return_value=("<html><body><div id='root'></div><script src='/app.js'></script></body></html>", 200),
+    ), patch(
+        "app.services.scraper.fetcher.fetch_dynamic",
+        new=AsyncMock(return_value=rendered_html),
+    ) as dynamic:
+        html = asyncio.run(fetch("https://example.test"))
+
+    assert html == rendered_html
+    dynamic.assert_awaited_once_with(url="https://example.test")
 
 
 def test_fetch_dead_returns_empty():
@@ -105,7 +119,8 @@ if __name__ == "__main__":
     test_fetch_static_404_returns_empty()
     test_fetch_static_short_page()
     test_fetch_good_returns_html()
-    test_fetch_short_falls_back_to_dynamic()
+    test_fetch_short_page_stays_static()
+    test_fetch_empty_static_page_falls_back_to_dynamic()
     test_fetch_dead_returns_empty()
     test_fetch_static_dead_returns_empty()
     print("ALL TESTS PASSED")

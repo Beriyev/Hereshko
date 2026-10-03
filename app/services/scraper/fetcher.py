@@ -1,6 +1,7 @@
 from playwright.async_api import async_playwright
-from app.services.scraper.scraper_config import FETCH_TIMEOUT, RENDER_TIMEOUT, USER_AGENT, STATIC_LENGTH_THRESHOLD
+from app.services.scraper.scraper_config import FETCH_TIMEOUT, RENDER_TIMEOUT, USER_AGENT
 import httpx
+from bs4 import BeautifulSoup
 
 async def fetch_static(url: str) -> tuple[str,int]:
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT,headers={'User-Agent':USER_AGENT}) as client:
@@ -36,10 +37,16 @@ async def fetch(url: str) -> str:
     html,status = await fetch_static(url=url)
     if (status not in (0, 200)) or (html == "" and status == 0):
         return ""
-    if len(html) < STATIC_LENGTH_THRESHOLD:
-        print("Static failed, using Dynamic page fetching")
-        html = await fetch_dynamic(url= url)
+    soup = BeautifulSoup(html,"html.parser")
+    tags_to_remove = ["script","style","noscript","head","template"]
+
+    for removal_tag in tags_to_remove:
+        for tag in soup.find_all(removal_tag):
+            tag.decompose()
+
+    text = "".join(soup.stripped_strings)
+
+    if text == "":
+        html = await fetch_dynamic(url=url)
+
     return html
-
-
-    
