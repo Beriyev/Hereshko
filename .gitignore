@@ -1,6 +1,11 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 build/
 dist/
 wheels/
@@ -13,3 +18,6 @@ wheels/
 .env
 .env.*
 !.env.example
+
+# Local runtime data
+data/*.db

@@ -151,7 +151,7 @@ class WeaviateService:
                 document_id=cast(str,obj.properties.get("document_id")),
                 notebook_id=cast(str,obj.properties.get("notebook_id")),
                 content=cast(str,obj.properties.get("content")),
-                position_type=cast(SourceType,obj.properties.get("position_type")),
+                position_type=SourceType(obj.properties.get("position_type")),
                 page_number=cast(int,obj.properties.get("page_number")),
                 paragraph_index=cast(int,obj.properties.get("paragraph_index")),
                 slide_number=cast(int,obj.properties.get("slide_number")),

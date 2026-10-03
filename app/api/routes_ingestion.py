@@ -6,6 +6,8 @@ from app.services.ingestion.website_extractor import extract_website
 from app.core.exceptions import IngestionError
 import tempfile
 from app.services.ingestion.video_extractor import extract_youtube
+import asyncio
+from app.services.ingestion.indexing import index_document
 
 router = APIRouter()
 
@@ -27,6 +29,7 @@ async def upload_file(file: UploadFile, notebook_id: str = Form(...))-> IngestRe
     try:
         ingester = get_ingester(source_type)
         document = ingester(temp_file_path, notebook_id)
+        document = await asyncio.to_thread(index_document,document=document)
     except IngestionError as e:
         raise HTTPException(status_code=400, detail=str(e))
     finally:
@@ -38,13 +41,12 @@ async def upload_file(file: UploadFile, notebook_id: str = Form(...))-> IngestRe
 async def upload_website(url: str = Form(...), notebook_id: str = Form(...)) -> WebsiteIngestResponse:
     try:
         documents = await extract_website(url=url,notebook_id=notebook_id)
+        document_ids = []
+        for document in documents:
+                document = await asyncio.to_thread(index_document,document=document)
+                document_ids.append(document.document_id)
     except IngestionError as e:
         raise HTTPException(status_code=400,detail=str(e))
-    
-    document_ids = []
-
-    for document in documents:
-        document_ids.append(document.document_id)
 
     return WebsiteIngestResponse(
         document_ids=document_ids,
@@ -52,9 +54,10 @@ async def upload_website(url: str = Form(...), notebook_id: str = Form(...)) -> 
     )
 
 @router.post("/ingest/youtube",response_model=IngestResponse)
-def ingest_youtube(url: str = Form(...), notebook_id: str = Form(...)) -> IngestResponse:
+async def ingest_youtube(url: str = Form(...), notebook_id: str = Form(...)) -> IngestResponse:
     try:
         document = extract_youtube(url=url, notebook_id=notebook_id)
+        document = await asyncio.to_thread(index_document,document=document)
     except IngestionError as e:
         raise HTTPException(status_code=400,detail=str(e))
 
