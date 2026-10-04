@@ -9,6 +9,7 @@ from app.core.normalization import Document
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 DATABASE_PATH = DATA_DIR / "hereshko.db"
+PREVIEW_CHARS = 2000
 
 
 def get_connection() -> sqlite3.Connection:
@@ -48,6 +49,21 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_sources_notebook_id
             ON sources(notebook_id);
             """
+        )
+
+        now = datetime.now(timezone.utc).isoformat()
+        connection.execute(
+            """
+            INSERT INTO notebooks (
+                notebook_id,
+                title,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(notebook_id) DO NOTHING
+            """,
+            ("nb-1", "Untitled notebook", now, now),
         )
 
 
@@ -100,7 +116,13 @@ def save_source(document: Document) -> None:
                 document.source_type.value,
                 document.source_identifier,
                 document.ingested_at.isoformat(),
-                json.dumps(document.raw_metadata, default=str),
+                json.dumps(
+                    {
+                        **document.raw_metadata,
+                        "preview_text": document.content[:PREVIEW_CHARS],
+                    },
+                    default=str,
+                ),
             ),
         )
 
@@ -136,6 +158,22 @@ def get_notebook(notebook_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def update_notebook_title(notebook_id: str, title: str) -> dict | None:
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE notebooks
+            SET title = ?, updated_at = ?
+            WHERE notebook_id = ?
+            """,
+            (title, now, notebook_id),
+        )
+
+    return get_notebook(notebook_id)
+
+
 def list_sources(notebook_id: str) -> list[dict]:
     with get_connection() as connection:
         rows = connection.execute(
@@ -163,3 +201,49 @@ def list_sources(notebook_id: str) -> list[dict]:
         sources.append(source)
 
     return sources
+
+
+def delete_source(document_id: str, notebook_id: str) -> bool:
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            DELETE FROM sources
+            WHERE document_id = ? AND notebook_id = ?
+            """,
+            (document_id, notebook_id),
+        )
+        if cursor.rowcount == 0:
+            return False
+
+        connection.execute(
+            """
+            UPDATE notebooks
+            SET updated_at = ?
+            WHERE notebook_id = ?
+            """,
+            (now, notebook_id),
+        )
+
+    return True
+
+
+def delete_all_sources(notebook_id: str) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as connection:
+        cursor = connection.execute(
+            "DELETE FROM sources WHERE notebook_id = ?",
+            (notebook_id,),
+        )
+        connection.execute(
+            """
+            UPDATE notebooks
+            SET updated_at = ?
+            WHERE notebook_id = ?
+            """,
+            (now, notebook_id),
+        )
+
+    return cursor.rowcount

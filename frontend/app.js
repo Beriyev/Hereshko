@@ -3,59 +3,31 @@ const apiBaseUrl = window.HERESHKO_API_URL || "http://localhost:8000";
 const sessionId = window.crypto?.randomUUID?.() || `session-${Date.now()}`;
 
 const mindMapData = {
-  label: "Machine Learning",
-  description: "Systems that learn patterns from data to make predictions or decisions.",
-  sources: 4,
-  children: [
-    {
-      label: "Neural Networks",
-      description: "Layered function approximators inspired by connected biological neurons.",
-      sources: 3,
-      children: [
-        { label: "Backpropagation", description: "Computes gradients through the chain rule.", sources: 2 },
-        { label: "Optimization", description: "Updates model parameters to minimize a loss function.", sources: 3 },
-        { label: "Generalization", description: "The model's ability to perform well on unseen data.", sources: 2 },
-      ],
-    },
-    {
-      label: "Transformers",
-      description: "Sequence models built around attention rather than recurrence.",
-      sources: 4,
-      children: [
-        { label: "Self-attention", description: "Relates each token to every other relevant token.", sources: 4 },
-        { label: "Positional encoding", description: "Injects token order into a non-recurrent architecture.", sources: 2 },
-        {
-          label: "Representations",
-          description: "Learned numerical descriptions of concepts and relationships.",
-          sources: 3,
-          children: [
-            { label: "Embeddings", description: "Dense vectors that encode semantic properties.", sources: 3 },
-            { label: "Context", description: "Information surrounding a token that shapes its meaning.", sources: 2 },
-          ],
-        },
-      ],
-    },
-    {
-      label: "Evaluation",
-      description: "Methods for measuring model quality, reliability, and failure modes.",
-      sources: 2,
-      children: [
-        { label: "Metrics", description: "Quantitative measures aligned with the task objective.", sources: 2 },
-        { label: "Bias & variance", description: "A framework for understanding underfitting and overfitting.", sources: 2 },
-      ],
-    },
-  ],
+  label: "Your notebook",
+  description: "Mind map generation will use indexed notebook content when that feature is connected.",
+  sources: 0,
+  children: [],
 };
-
-const randomResponses = [
-  "Hi! I’m ready to help you explore this notebook. Your current sources cover neural networks, transformers, attention, and model evaluation. Ask for an explanation, comparison, revision plan, or a source-grounded quiz and I’ll trace the answer back to the exact material.",
-  "Hello! This notebook has been indexed and its main concepts are connected. We could begin with self-attention, compare transformers with recurrent networks, or turn the uploaded material into a focused study session.",
-  "Hey there. I’ve mapped the ideas across your sources and can help you move from a broad overview to the exact supporting passage. Try asking what the most important concept is, where the sources agree, or what you should revise first.",
-];
 
 const elements = {
   form: document.getElementById("chatForm"),
   input: document.getElementById("chatInput"),
+  modeButton: document.getElementById("modeButton"),
+  modeLabel: document.getElementById("modeLabel"),
+  notebookTitle: document.getElementById("notebookTitle"),
+  renameNotebook: document.getElementById("renameNotebook"),
+  sourceCount: document.getElementById("sourceCount"),
+  sourceList: document.getElementById("sourceList"),
+  sourceEmpty: document.getElementById("sourceEmpty"),
+  sourcePreview: document.getElementById("sourcePreview"),
+  sourcePreviewTitle: document.getElementById("sourcePreviewTitle"),
+  sourcePreviewText: document.getElementById("sourcePreviewText"),
+  indexHealth: document.getElementById("indexHealth"),
+  indexHealthBar: document.getElementById("indexHealthBar"),
+  summaryText: document.getElementById("summaryText"),
+  generatedTitle: document.getElementById("generatedTitle"),
+  summarySourceCount: document.getElementById("summarySourceCount"),
+  summaryUpdated: document.getElementById("summaryUpdated"),
   conversation: document.getElementById("conversation"),
   empty: document.getElementById("emptyConversation"),
   scroll: document.getElementById("centerScroll"),
@@ -70,12 +42,50 @@ const elements = {
 
 let isStreaming = false;
 let toastTimer;
+let savedNotebookTitle = "Untitled notebook";
+let webSearchMode = false;
 
 function showToast(message) {
   clearTimeout(toastTimer);
   elements.toast.querySelector("p").textContent = message;
   elements.toast.classList.add("show");
   toastTimer = setTimeout(() => elements.toast.classList.remove("show"), 2300);
+}
+
+function showBottomPanel(title, text) {
+  elements.sourcePreviewTitle.textContent = title;
+  elements.sourcePreviewText.textContent = text;
+  elements.sourcePreview.hidden = false;
+  elements.sourcePreview.classList.remove("preview-enter");
+  requestAnimationFrame(() => elements.sourcePreview.classList.add("preview-enter"));
+}
+
+async function saveNotebookTitle() {
+  const title = elements.notebookTitle.value.trim();
+  if (!title) {
+    elements.notebookTitle.value = savedNotebookTitle;
+    showToast("Notebook name cannot be empty.");
+    return;
+  }
+  if (title === savedNotebookTitle) return;
+
+  const previousTitle = savedNotebookTitle;
+  elements.renameNotebook.disabled = true;
+  try {
+    const notebook = await apiRequest(`/notebooks/${notebookId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    savedNotebookTitle = notebook.title;
+    elements.notebookTitle.value = notebook.title;
+    showToast("Notebook name saved.");
+  } catch (error) {
+    elements.notebookTitle.value = previousTitle;
+    showToast(error.message);
+  } finally {
+    elements.renameNotebook.disabled = false;
+  }
 }
 
 function autoResizeTextarea() {
@@ -96,7 +106,12 @@ function createMessage(role, text = "") {
 
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
-  bubble.textContent = text;
+  if (role === "assistant" && !text) {
+    bubble.classList.add("typing-bubble");
+    bubble.innerHTML = '<span class="chat-loading-dots" aria-label="Hereshko is thinking"><i></i><i></i><i></i></span>';
+  } else {
+    bubble.textContent = text;
+  }
   row.appendChild(bubble);
   elements.conversation.appendChild(row);
   return { row, bubble };
@@ -133,6 +148,55 @@ async function streamText(target, text) {
   target.classList.remove("stream-cursor");
 }
 
+function renderFormattedText(target, text) {
+  target.replaceChildren();
+
+  function appendFormatted(container, value) {
+    const markerPattern = /(\[\d+\]|\*\*)/g;
+    let cursor = 0;
+    let match;
+
+    while ((match = markerPattern.exec(value)) !== null) {
+      const token = match[0];
+      const start = match.index;
+
+      if (start > cursor) {
+        container.appendChild(document.createTextNode(value.slice(cursor, start)));
+      }
+
+      if (token.startsWith("[")) {
+        const citation = document.createElement("strong");
+        const underline = document.createElement("u");
+        underline.textContent = token;
+        citation.appendChild(underline);
+        container.appendChild(citation);
+        cursor = start + token.length;
+        continue;
+      }
+
+      const closingIndex = value.indexOf(token, start + token.length);
+      if (closingIndex === -1) {
+        container.appendChild(document.createTextNode(token));
+        cursor = start + token.length;
+        continue;
+      }
+
+      const element = document.createElement("strong");
+      appendFormatted(element, value.slice(start + token.length, closingIndex));
+      container.appendChild(element);
+      cursor = closingIndex + token.length;
+      markerPattern.lastIndex = cursor;
+    }
+
+    if (cursor < value.length) {
+      container.appendChild(document.createTextNode(value.slice(cursor)));
+    }
+  }
+
+  const withoutSingleAsterisks = text.replace(/(?<!\*)\*(?!\*)/g, "");
+  appendFormatted(target, withoutSingleAsterisks);
+}
+
 function addCitationCards(row, citations = []) {
   const sources = document.createElement("div");
   sources.className = "answer-sources";
@@ -141,7 +205,12 @@ function addCitationCards(row, citations = []) {
     const source = document.createElement("button");
     source.textContent = number;
     source.title = citation.source_name || `Open source ${number}`;
-    source.addEventListener("click", () => showToast(citation.content || `Source ${number}`));
+    source.addEventListener("click", () => {
+      showBottomPanel(
+        citation.source_name || `Source ${number}`,
+        citation.content || "No chunk text was returned for this citation."
+      );
+    });
     sources.appendChild(source);
   });
   if (citations.length) row.appendChild(sources);
@@ -162,6 +231,167 @@ async function apiRequest(path, options = {}) {
   return response.json();
 }
 
+function sourceClass(sourceType) {
+  if (sourceType === "pdf") return "pdf";
+  if (sourceType === "website") return "web";
+  if (sourceType === "youtube") return "video";
+  return "note";
+}
+
+function sourceMeta(source) {
+  const metadata = source.metadata || {};
+  if (metadata.pages_count) return `${metadata.pages_count} pages · Indexed`;
+  if (metadata.slides_count) return `${metadata.slides_count} slides · Indexed`;
+  if (source.source_type === "website") return "Website · Indexed";
+  if (source.source_type === "youtube") return "YouTube · Indexed";
+  return `${source.source_type.toUpperCase()} · Indexed`;
+}
+
+function renderSources(sources) {
+  elements.sourceList.innerHTML = "";
+
+  if (!sources.length) {
+    elements.sourceList.appendChild(elements.sourceEmpty);
+    elements.sourceCount.textContent = "0";
+    return;
+  }
+
+  sources.forEach((source, index) => {
+    const card = document.createElement("article");
+    card.className = `source-card${index === 0 ? " active" : ""}`;
+
+    const icon = document.createElement("span");
+    icon.className = `file-icon ${sourceClass(source.source_type)}`;
+    icon.textContent = source.source_type.slice(0, 3).toUpperCase();
+
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = source.title;
+    const meta = document.createElement("small");
+    meta.textContent = sourceMeta(source);
+    details.append(title, meta);
+
+    const menu = document.createElement("button");
+    menu.className = "source-menu";
+    menu.type = "button";
+    menu.setAttribute("aria-label", `Options for ${source.title}`);
+    menu.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (!window.confirm(`Remove ${source.title} from this notebook?`)) return;
+
+      menu.disabled = true;
+      try {
+        await apiRequest(`/notebooks/${notebookId}/sources/${source.document_id}`, {
+          method: "DELETE",
+        });
+        elements.sourcePreview.hidden = true;
+        await loadNotebook();
+        showToast("Source removed");
+      } catch (error) {
+        menu.disabled = false;
+        showToast(`Source removal failed: ${error.message}`);
+      }
+    });
+    menu.textContent = "•••";
+
+    card.append(icon, details, menu);
+    card.addEventListener("click", () => {
+      document.querySelectorAll(".source-card").forEach((item) => item.classList.remove("active"));
+      card.classList.add("active");
+      showBottomPanel(source.title, source.metadata?.preview_text || "No text preview is available for this source.");
+    });
+    elements.sourceList.appendChild(card);
+  });
+
+  elements.sourceCount.textContent = sources.length;
+  elements.indexHealth.textContent = "Ready";
+  elements.indexHealthBar.style.width = "100%";
+}
+
+document.getElementById("closeSourcePreview").addEventListener("click", () => {
+  elements.sourcePreview.hidden = true;
+  document.querySelectorAll(".source-card").forEach((item) => item.classList.remove("active"));
+});
+
+document.getElementById("deleteAllSources").addEventListener("click", async (event) => {
+  if (!Number(elements.sourceCount.textContent)) {
+    showToast("There are no sources to delete");
+    return;
+  }
+  if (!window.confirm("Remove every source from this notebook?")) return;
+
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await apiRequest(`/notebooks/${notebookId}/sources`, { method: "DELETE" });
+    elements.sourcePreview.hidden = true;
+    await loadNotebook();
+    showToast("All sources removed");
+  } catch (error) {
+    showToast(`Source removal failed: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function loadNotebook() {
+  const [notebook, sourcePayload] = await Promise.all([
+    apiRequest(`/notebooks/${notebookId}`),
+    apiRequest(`/notebooks/${notebookId}/sources`),
+  ]);
+
+  savedNotebookTitle = notebook.title;
+  elements.notebookTitle.value = notebook.title;
+  elements.sourceCount.textContent = notebook.source_count;
+  elements.summarySourceCount.textContent = notebook.source_count;
+  if (notebook.source_count === 0) {
+    elements.generatedTitle.textContent = "Notebook overview";
+    elements.indexHealth.textContent = "Waiting";
+    elements.indexHealthBar.style.width = "0%";
+  }
+  renderSources(sourcePayload.sources || []);
+
+  if (notebook.source_count > 0) {
+    refreshNotebookOverview(false).catch((error) => {
+      console.warn(`Could not generate notebook overview: ${error.message}`);
+    });
+  }
+}
+
+async function refreshNotebookOverview(showSuccess = true) {
+  elements.summaryText.classList.add("refreshing");
+
+  try {
+    const payload = await apiRequest(`/notebooks/${notebookId}/summary`, {
+      method: "POST",
+    });
+    elements.generatedTitle.textContent = "";
+    elements.summaryText.textContent = "";
+    await Promise.all([
+      streamText(elements.generatedTitle, payload.title),
+      streamText(elements.summaryText, payload.summary),
+    ]);
+    renderFormattedText(elements.summaryText, payload.summary);
+    elements.summarySourceCount.textContent = payload.source_count;
+    elements.summaryUpdated.textContent = `Updated ${new Date(payload.updated_at).toLocaleString()}`;
+    if (showSuccess) showToast("Notebook summary refreshed");
+  } finally {
+    elements.summaryText.classList.remove("refreshing");
+  }
+}
+
+elements.notebookTitle.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    elements.notebookTitle.blur();
+  }
+});
+elements.notebookTitle.addEventListener("blur", saveNotebookTitle);
+elements.renameNotebook.addEventListener("click", () => {
+  elements.notebookTitle.focus();
+  elements.notebookTitle.select();
+});
+
 async function submitPrompt(prompt) {
   const cleanPrompt = prompt.trim();
   if (!cleanPrompt || isStreaming) return;
@@ -177,11 +407,21 @@ async function submitPrompt(prompt) {
     const payload = await apiRequest("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notebook_id: notebookId, query: cleanPrompt, session_id: sessionId }),
+      body: JSON.stringify({
+        notebook_id: notebookId,
+        query: cleanPrompt,
+        session_id: sessionId,
+        web_search: webSearchMode,
+      }),
     });
-    await streamText(bubble, payload.answer || "The notebook returned an empty answer.");
+    const answer = payload.answer || "The notebook returned an empty answer.";
+    bubble.classList.remove("typing-bubble");
+    bubble.textContent = "";
+    await streamText(bubble, answer);
+    renderFormattedText(bubble, answer);
     addCitationCards(row, payload.sources);
   } catch (error) {
+    bubble.classList.remove("typing-bubble");
     bubble.textContent = `I couldn’t reach the Hereshko backend: ${error.message}`;
     showToast("Chat request failed");
   } finally {
@@ -193,6 +433,14 @@ async function submitPrompt(prompt) {
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
   submitPrompt(elements.input.value);
+});
+
+elements.modeButton.addEventListener("click", () => {
+  webSearchMode = !webSearchMode;
+  elements.modeButton.classList.toggle("active", webSearchMode);
+  elements.modeButton.setAttribute("aria-pressed", String(webSearchMode));
+  elements.modeLabel.textContent = webSearchMode ? "Web Search" : "Grounded";
+  showToast(webSearchMode ? "Web Search mode enabled" : "Grounded mode enabled");
 });
 
 elements.input.addEventListener("input", autoResizeTextarea);
@@ -248,6 +496,7 @@ async function uploadFiles(files) {
       showToast(`Could not index ${file.name}`);
     }
   }));
+  await loadNotebook();
   showToast(`${files.length} source${files.length === 1 ? "" : "s"} processed`);
 }
 
@@ -294,7 +543,7 @@ document.getElementById("addYoutube").addEventListener("click", async () => {
       <button class="source-menu" aria-label="Source options">•••</button>
     `;
     document.getElementById("sourceList").prepend(card);
-    document.getElementById("sourceCount").textContent = document.querySelectorAll(".source-card").length;
+    await loadNotebook();
     input.value = "";
     showToast("YouTube source added");
   } catch (error) {
@@ -302,15 +551,67 @@ document.getElementById("addYoutube").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("refreshSummary").addEventListener("click", () => {
-  const summary = document.getElementById("summaryText");
-  summary.classList.remove("refreshing");
-  void summary.offsetWidth;
-  summary.classList.add("refreshing");
-  setTimeout(() => {
-    summary.textContent = "Your notebook connects neural-network training with transformer design, emphasizing attention, learned representations, and evaluation. The material moves from foundational mechanisms to practical questions about reliability and generalization.";
-    showToast("Notebook summary refreshed");
-  }, 360);
+async function ingestWebsite(endpoint, triggerButton) {
+  const input = document.getElementById("websiteInput");
+  const box = document.getElementById("websiteBox");
+  const scrapeButton = document.getElementById("scrapeWebsite");
+  const crawlButton = document.getElementById("crawlWebsite");
+  const url = input.value.trim();
+
+  if (!url) {
+    showToast("Paste a website URL first");
+    input.focus();
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("url", url);
+  formData.append("notebook_id", notebookId);
+  box.classList.add("loading");
+  input.disabled = true;
+  scrapeButton.disabled = true;
+  crawlButton.disabled = true;
+  triggerButton.classList.add("loading");
+
+  try {
+    const payload = await apiRequest(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+    await loadNotebook();
+    input.value = "";
+    const count = payload.document_ids?.length || 1;
+    showToast(`${count} website source${count === 1 ? "" : "s"} indexed`);
+  } catch (error) {
+    showToast(`Website ingestion failed: ${error.message}`);
+  } finally {
+    box.classList.remove("loading");
+    input.disabled = false;
+    scrapeButton.disabled = false;
+    crawlButton.disabled = false;
+    triggerButton.classList.remove("loading");
+  }
+}
+
+document.getElementById("scrapeWebsite").addEventListener("click", (event) => {
+  ingestWebsite("/ingest/scrape", event.currentTarget);
+});
+
+document.getElementById("crawlWebsite").addEventListener("click", (event) => {
+  ingestWebsite("/ingest/website", event.currentTarget);
+});
+
+document.getElementById("refreshSummary").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+
+  try {
+    await refreshNotebookOverview();
+  } catch (error) {
+    showToast(`Summary failed: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 function renderMindMap(root) {
@@ -366,7 +667,6 @@ function closeMindMap() {
   document.body.style.overflow = "";
 }
 
-document.getElementById("openMindMap").addEventListener("click", openMindMap);
 document.getElementById("closeMindMap").addEventListener("click", closeMindMap);
 elements.modal.addEventListener("click", (event) => {
   if (event.target === elements.modal) closeMindMap();
@@ -374,14 +674,10 @@ elements.modal.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && elements.modal.classList.contains("open")) closeMindMap();
-  if ((event.metaKey || event.ctrlKey) && event.key === "3") {
-    event.preventDefault();
-    openMindMap();
-  }
 });
 
 document.getElementById("generateMap").addEventListener("click", () => {
-  const topic = document.getElementById("mindMapTopic").value.trim() || "Machine Learning";
+  const topic = document.getElementById("mindMapTopic").value.trim() || "Your notebook";
   const map = structuredClone(mindMapData);
   map.label = topic;
   map.description = `A generated overview of ${topic} based on the current notebook.`;
@@ -405,3 +701,6 @@ document.getElementById("askFromMap").addEventListener("click", () => {
 });
 
 renderMindMap(mindMapData);
+loadNotebook().catch((error) => {
+  showToast(`Could not load notebook: ${error.message}`);
+});

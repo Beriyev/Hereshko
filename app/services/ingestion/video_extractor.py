@@ -3,13 +3,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from app.core.normalization import Document, SourceType
 from app.core.exceptions import IngestionError
-from app.services.video.pipeline import download_yt_audio, get_transcript, get_metadata
+from app.services.video.pipeline import download_yt_audio, get_transcript
 
 def extract_youtube(url: str, notebook_id: str) -> Document:
     temp_dir = Path(tempfile.mkdtemp(prefix="hereshko_youtube_"))
     try:
-        audio_path = download_yt_audio(video_url=url,output_dir=temp_dir)
-        metadata = get_metadata(video_url=url)
+        audio_path, metadata = download_yt_audio(
+            video_url=url,
+            output_dir=temp_dir,
+        )
         transcript = get_transcript(audio_path=audio_path)
 
         texts = []

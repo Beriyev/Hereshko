@@ -4,14 +4,26 @@ from pathlib import Path
 from app.services.ingestion.pdf_extractor import extract_pdf
 from app.services.ingestion.txt_extractor import extract_txt
 from app.services.ingestion.docx_extractor import extract_docx
-from app.services.ingestion.pptx_extractor import extract_pptx
-from app.core.exceptions import UnsupportedSourceError
+from app.core.exceptions import IngestionError, UnsupportedSourceError
+
+
+def extract_pptx_lazy(file_path: Path, notebook_id: str):
+    try:
+        from app.services.ingestion.pptx_extractor import extract_pptx
+    except ModuleNotFoundError as error:
+        if error.name in {"paddle", "paddleocr", "win32com"}:
+            raise IngestionError(
+                "PPTX ingestion requires PaddleOCR and Microsoft PowerPoint dependencies."
+            ) from error
+        raise
+
+    return extract_pptx(file_path, notebook_id)
 
 file_ingester_mapping: dict[SourceType, Callable[[Path,str], Document]] = {
     SourceType.TXT: extract_txt,
     SourceType.PDF: extract_pdf,
     SourceType.DOCX: extract_docx,
-    SourceType.PPTX: extract_pptx
+    SourceType.PPTX: extract_pptx_lazy
 }
 
 extension_to_source_type_mapping: dict[str, SourceType] = {

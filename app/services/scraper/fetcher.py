@@ -4,7 +4,11 @@ import httpx
 from bs4 import BeautifulSoup
 
 async def fetch_static(url: str) -> tuple[str,int]:
-    async with httpx.AsyncClient(timeout=FETCH_TIMEOUT,headers={'User-Agent':USER_AGENT}) as client:
+    async with httpx.AsyncClient(
+        timeout=FETCH_TIMEOUT,
+        headers={"User-Agent": USER_AGENT},
+        follow_redirects=True,
+    ) as client:
         try:
             response = await client.get(url=url)
             response.raise_for_status()

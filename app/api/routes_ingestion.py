@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, Form, HTTPException
 from app.schemas.ingestion import IngestResponse, WebsiteIngestResponse
 from pathlib import Path
 from app.services.ingestion.registry import get_ingester, extension_to_source_type_mapping
-from app.services.ingestion.website_extractor import extract_website
+from app.services.ingestion.website_extractor import extract_scraped_website, extract_website
 from app.core.exceptions import IngestionError
 import tempfile
 from app.services.ingestion.video_extractor import extract_youtube
@@ -53,10 +53,31 @@ async def upload_website(url: str = Form(...), notebook_id: str = Form(...)) -> 
         status="success"
     )
 
+
+@router.post("/ingest/scrape", response_model=WebsiteIngestResponse)
+async def scrape_website(url: str = Form(...), notebook_id: str = Form(...)) -> WebsiteIngestResponse:
+    try:
+        documents = await extract_scraped_website(url=url, notebook_id=notebook_id)
+        document_ids = []
+        for document in documents:
+            document = await asyncio.to_thread(index_document, document=document)
+            document_ids.append(document.document_id)
+    except IngestionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return WebsiteIngestResponse(
+        document_ids=document_ids,
+        status="success",
+    )
+
 @router.post("/ingest/youtube",response_model=IngestResponse)
 async def ingest_youtube(url: str = Form(...), notebook_id: str = Form(...)) -> IngestResponse:
     try:
-        document = extract_youtube(url=url, notebook_id=notebook_id)
+        document = await asyncio.to_thread(
+            extract_youtube,
+            url=url,
+            notebook_id=notebook_id,
+        )
         document = await asyncio.to_thread(index_document,document=document)
     except IngestionError as e:
         raise HTTPException(status_code=400,detail=str(e))

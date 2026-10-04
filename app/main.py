@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes_ingestion import router as ingestion_router
 from app.api.routes_chat import router as chat_router
+from app.api.routes_notebooks import router as notebooks_router
 from app.clients.weaviate_client import close_weaviate_service
 from app.storage.database import init_db
 
@@ -29,3 +30,4 @@ app.add_middleware(
 
 app.include_router(ingestion_router)
 app.include_router(chat_router)
+app.include_router(notebooks_router)

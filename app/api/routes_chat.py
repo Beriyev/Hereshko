@@ -7,6 +7,7 @@ from app.services.rag.weaviate_service import WeaviateService
 from app.services.rag.llm import generate_answer
 from app.core.exceptions import ChatError, RetrievalError, HereshkoError
 import asyncio
+import traceback
 from app.services.rag.web_agent import gather_web_sources
 
 router = APIRouter()
@@ -36,11 +37,24 @@ async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends
     else:
         history = None
 
-    try:
-        web_chunks = await gather_web_sources(query=request.query,context_chunks=retrieved_chunks,notebook_id=request.notebook_id)
-    except Exception:
-        web_chunks = []
-    all_chunks = retrieved_chunks+web_chunks
+    web_chunks = []
+    if request.web_search or not retrieved_chunks:
+        try:
+            web_chunks = await gather_web_sources(
+                query=request.query,
+                context_chunks=retrieved_chunks,
+                notebook_id=request.notebook_id,
+                force_web=request.web_search,
+            )
+        except Exception as error:
+            print(f"MCP web tools unavailable: {error}")
+            traceback.print_exception(type(error), error, error.__traceback__)
+            if request.web_search:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Web Search mode requires MCP, but MCP is unavailable: {error}",
+                ) from error
+    all_chunks = retrieved_chunks + web_chunks
 
     try:
         generated_answer = await asyncio.to_thread(generate_answer,chat_request=request,retrieved_chunks=all_chunks,history=history)

@@ -5,6 +5,7 @@ class ChatRequest(BaseModel):
     notebook_id: str
     query: str
     session_id: str | None = None
+    web_search: bool = False
 
 class Citation(BaseModel):
     marker: int

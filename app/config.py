@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr
 
 
 class Settings(BaseSettings):
@@ -17,13 +16,14 @@ class Settings(BaseSettings):
     yt_js_runtime: str = "deno"
     yt_deno_path: str = ""
 
-    gemini_api_key: SecretStr = SecretStr("")
-    gemini_embed_model: str = "gemini-embedding-001"
+    embedding_model: str = "BAAI/bge-large-en-v1.5"
+    embedding_device: str = "cpu"
+    embedding_batch_size: int = 8
 
     tavily_api_key: str = ""
     weaviate_url: str = "http://localhost:8080"
 
     mcp_server_url: str = "http://127.0.0.1:8765/mcp"
-    web_tool_max_iterations: int = 4
+    web_tool_max_iterations: int = 2
 
 settings = Settings()

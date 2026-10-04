@@ -17,23 +17,15 @@
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="#" aria-label="Hereshko home">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="img">
-              <path d="M8 7.5h11.5a5 5 0 0 1 0 10H12" />
-              <path d="M12 12.5h10a5 5 0 0 1 0 10H8" />
-              <path d="M8 7.5v15" />
-            </svg>
-          </span>
           <span class="brand-name">Hereshko</span>
-          <span class="brand-badge">local</span>
         </a>
 
         <div class="notebook-title">
           <button class="icon-button menu-trigger" aria-label="Open menu">
             <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
           </button>
-          <span>Foundations of Machine Learning</span>
-          <button class="tiny-button" aria-label="Rename notebook">
+          <input id="notebookTitle" class="notebook-title-input" type="text" value="Untitled notebook" maxlength="120" aria-label="Notebook name" />
+          <button id="renameNotebook" class="tiny-button" type="button" aria-label="Save notebook name">
             <svg viewBox="0 0 24 24"><path d="m14.5 5.5 4 4M5 19l3.6-.7L19 7.9a1.4 1.4 0 0 0 0-2l-.9-.9a1.4 1.4 0 0 0-2 0L5.7 15.4 5 19Z" /></svg>
           </button>
         </div>
@@ -54,7 +46,7 @@
               <span class="eyebrow">Library</span>
               <h2>Sources</h2>
             </div>
-            <span class="count" id="sourceCount">4</span>
+            <span class="count" id="sourceCount">0</span>
           </div>
 
           <label class="upload-zone" id="uploadZone" for="fileInput">
@@ -63,7 +55,7 @@
               <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
             </span>
             <strong>Drop files here</strong>
-            <small>PDF, DOCX, TXT or Markdown</small>
+            <small>PDF, DOCX, TXT or PPTX</small>
             <span class="browse-label">Browse files</span>
           </label>
 
@@ -82,51 +74,52 @@
             </div>
           </div>
 
-          <div class="source-list-heading">
-            <span>Notebook sources</span>
-            <button class="sort-button" aria-label="Sort sources">
-              <svg viewBox="0 0 24 24"><path d="M8 7h12M4 7h.01M8 12h8M4 12h.01M8 17h5M4 17h.01" /></svg>
+          <div class="youtube-box website-box" id="websiteBox">
+            <div class="youtube-label">
+              <span class="play-dot website-dot">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" /><path d="M5 12h14M12 5a11 11 0 0 1 0 14M12 5a11 11 0 0 0 0 14" /></svg>
+              </span>
+              Website source
+            </div>
+            <div class="url-input-wrap">
+              <input id="websiteInput" type="url" placeholder="Paste a website URL" />
+              <button id="scrapeWebsite" type="button" aria-label="Scrape this page">
+                <span>Scrape</span>
+                <span class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              </button>
+            </div>
+            <button id="crawlWebsite" class="crawl-button" type="button">
+              <span>Crawl site</span>
+              <span class="crawl-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
             </button>
           </div>
 
-          <div class="source-list" id="sourceList">
-            <article class="source-card active">
-              <span class="file-icon pdf">PDF</span>
-              <div>
-                <strong>Neural Networks.pdf</strong>
-                <small>48 pages · 12.4k words</small>
-              </div>
-              <button class="source-menu" aria-label="Source options">•••</button>
-            </article>
-            <article class="source-card">
-              <span class="file-icon web">WEB</span>
-              <div>
-                <strong>Attention Is All You Need</strong>
-                <small>arxiv.org · Indexed</small>
-              </div>
-              <button class="source-menu" aria-label="Source options">•••</button>
-            </article>
-            <article class="source-card">
-              <span class="file-icon video">YT</span>
-              <div>
-                <strong>Transformers explained</strong>
-                <small>18:42 · Transcript ready</small>
-              </div>
-              <button class="source-menu" aria-label="Source options">•••</button>
-            </article>
-            <article class="source-card">
-              <span class="file-icon note">TXT</span>
-              <div>
-                <strong>Lecture notes week 06</strong>
-                <small>3.1k words · Indexed</small>
-              </div>
-              <button class="source-menu" aria-label="Source options">•••</button>
-            </article>
+          <div class="source-list-heading">
+            <span>Notebook sources</span>
+            <div class="source-list-actions">
+              <button id="deleteAllSources" class="delete-all-button" type="button">Delete all</button>
+              <button class="sort-button" aria-label="Sort sources">
+                <svg viewBox="0 0 24 24"><path d="M8 7h12M4 7h.01M8 12h8M4 12h.01M8 17h5M4 17h.01" /></svg>
+              </button>
+            </div>
           </div>
 
+          <div class="source-list" id="sourceList">
+            <div class="source-empty" id="sourceEmpty">No sources added yet.</div>
+          </div>
+
+          <section class="source-preview" id="sourcePreview" hidden aria-live="polite">
+            <div class="source-preview-heading">
+              <span class="eyebrow">Selected source</span>
+              <button id="closeSourcePreview" type="button" aria-label="Close source preview">x</button>
+            </div>
+            <strong id="sourcePreviewTitle">Source excerpt</strong>
+            <p id="sourcePreviewText">Click a source card to inspect its indexed text.</p>
+          </section>
+
           <div class="source-footer">
-            <div><span>Index health</span><strong>Excellent</strong></div>
-            <div class="health-bar"><i></i></div>
+            <div><span>Index health</span><strong id="indexHealth">Waiting</strong></div>
+            <div class="health-bar"><i id="indexHealthBar" style="width: 0%"></i></div>
           </div>
         </aside>
 
@@ -136,7 +129,7 @@
               <div class="summary-topline">
                 <div>
                   <span class="eyebrow"><i class="spark"></i> Notebook overview</span>
-                  <h1>Machine learning, made navigable.</h1>
+                  <h1 id="generatedTitle">Notebook overview</h1>
                 </div>
                 <button class="ghost-button" id="refreshSummary">
                   <svg viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5M18.6 9A7 7 0 0 0 6.3 6.3L4 11M5.4 15a7 7 0 0 0 12.3 2.7L20 13" /></svg>
@@ -144,9 +137,7 @@
                 </button>
               </div>
               <p id="summaryText">
-                These sources trace the foundations of modern machine learning, from neural network
-                optimization to the transformer architecture. They emphasize how attention replaces
-                recurrence, why representation learning works, and where model generalization can fail.
+                Add a source to generate a short notebook overview.
               </p>
               <div class="summary-chips">
                 <button data-question="Explain the core ideas across my sources">Core concepts</button>
@@ -155,10 +146,10 @@
                 <button data-question="Where do my sources disagree?">Source conflicts</button>
               </div>
               <div class="summary-meta">
-                <span><b>4</b> sources</span>
-                <span><b>7</b> key topics</span>
-                <span><b>28</b> min read</span>
-                <span class="updated"><i></i> Updated just now</span>
+                <span><b id="summarySourceCount">0</b> sources</span>
+                <span><b id="summaryTopicCount">—</b> key topics</span>
+                <span><b id="summaryReadTime">—</b> min read</span>
+                <span class="updated"><i></i> <span id="summaryUpdated">Not updated yet</span></span>
               </div>
             </section>
 
@@ -194,7 +185,9 @@
               </button>
               <textarea id="chatInput" rows="1" placeholder="Ask your notebook anything…"></textarea>
               <div class="composer-actions">
-                <button type="button" class="mode-button"><i></i> Grounded</button>
+                <button type="button" class="mode-button" id="modeButton" aria-pressed="false">
+                  <i></i><span id="modeLabel">Grounded</span>
+                </button>
                 <button type="submit" class="send-button" aria-label="Send message">
                   <svg viewBox="0 0 24 24"><path d="M12 19V5m0 0L6.5 10.5M12 5l5.5 5.5" /></svg>
                 </button>
@@ -216,41 +209,34 @@
           </div>
 
           <div class="tool-grid">
-            <button class="tool-card" data-toast="Notes workspace coming next">
-              <span class="tool-icon lavender">
-                <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6V3Z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>
-              </span>
-              <span><strong>Study notes</strong><small>Concise, source-linked</small></span>
-              <em>⌘1</em>
-            </button>
-            <button class="tool-card" data-toast="Question generator coming next">
+            <button class="tool-card upcoming-tool" data-toast="Questionweaver is upcoming">
               <span class="tool-icon mint">
                 <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h5M8 16h3" /></svg>
               </span>
-              <span><strong>Question set</strong><small>MCQ + written answers</small></span>
-              <em>⌘2</em>
+              <span><strong>Questionweaver</strong><small>Upcoming</small></span>
+              <em>soon</em>
             </button>
-            <button class="tool-card" id="openMindMap">
+            <button class="tool-card upcoming-tool" id="graphweaverButton" data-toast="Graphweaver is upcoming">
               <span class="tool-icon amber">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M11 7.3 7 15.7M13 7.3l4 8.4M8.5 18h7" /></svg>
               </span>
-              <span><strong>Mind map</strong><small>Explore topic branches</small></span>
-              <em>⌘3</em>
+              <span><strong>Graphweaver</strong><small>Upcoming</small></span>
+              <em>soon</em>
             </button>
-            <button class="tool-card" data-toast="Research agent is ready for backend wiring">
+            <button class="tool-card upcoming-tool" data-toast="Deep research is upcoming">
               <span class="tool-icon blue">
                 <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5M10.5 7.5v6M7.5 10.5h6" /></svg>
               </span>
-              <span><strong>Deep research</strong><small>Search, verify, synthesize</small></span>
-              <em>⌘4</em>
+              <span><strong>Deep research</strong><small>Upcoming</small></span>
+              <em>soon</em>
             </button>
           </div>
 
-          <section class="research-card">
+          <section class="research-card upcoming-research">
             <div class="research-heading">
               <span class="live-orb"></span>
               <div><strong>Research mode</strong><small>Multi-step web investigation</small></div>
-              <label class="switch"><input type="checkbox" /><span></span></label>
+              <label class="switch"><input type="checkbox" disabled /><span></span></label>
             </div>
             <div class="research-steps">
               <span class="done"><i>1</i> Search</span>
@@ -266,21 +252,14 @@
               <span>Discovered topics</span>
               <button aria-label="More topics">View all</button>
             </div>
-            <div class="topic-cloud">
-              <button data-question="Explain self-attention">Self-attention <span>12</span></button>
-              <button data-question="Explain model optimization">Optimization <span>9</span></button>
-              <button data-question="Explain embeddings">Embeddings <span>8</span></button>
-              <button data-question="Explain generalization">Generalization <span>6</span></button>
+            <div class="topic-cloud" id="topicCloud">
+              <span class="empty-panel-text">Topics will appear after indexing sources.</span>
             </div>
           </section>
 
           <section class="activity-card">
             <div class="section-title"><span>Notebook activity</span><small>This week</small></div>
-            <div class="activity-chart" aria-label="Notebook activity chart">
-              <i style="--h: 34%"></i><i style="--h: 55%"></i><i style="--h: 42%"></i>
-              <i style="--h: 78%"></i><i style="--h: 64%"></i><i style="--h: 92%"></i><i style="--h: 70%"></i>
-            </div>
-            <div class="chart-labels"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+            <div class="activity-empty">Activity tracking will appear here.</div>
           </section>
         </aside>
       </main>
@@ -309,7 +288,7 @@
             <div class="map-toolbar">
               <div class="map-topic-input">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></svg>
-                <input id="mindMapTopic" value="Machine Learning" />
+                <input id="mindMapTopic" placeholder="Notebook topic" />
               </div>
               <button id="generateMap">Generate map</button>
             </div>

@@ -125,6 +125,28 @@ class WeaviateService:
 
         return len(response.uuids)
 
+    def delete_document_chunks(self, document_id: str) -> None:
+        collection = self.client.collections.get("Chunks")
+        try:
+            collection.data.delete_many(
+                where=Filter.by_property("document_id").equal(document_id)
+            )
+        except Exception as e:
+            raise IngestionError(
+                f"Failed to delete document chunks from Weaviate: {e}"
+            ) from e
+
+    def delete_notebook_chunks(self, notebook_id: str) -> None:
+        collection = self.client.collections.get("Chunks")
+        try:
+            collection.data.delete_many(
+                where=Filter.by_property("notebook_id").equal(notebook_id)
+            )
+        except Exception as e:
+            raise IngestionError(
+                f"Failed to delete notebook chunks from Weaviate: {e}"
+            ) from e
+
     def retrieve_chunks(self, query: str, embedding: list[float], limit: int, notebook_id: str) -> list[Chunk]:
         collection = self.client.collections.get("Chunks")
 

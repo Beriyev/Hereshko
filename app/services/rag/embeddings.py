@@ -1,10 +1,44 @@
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from typing import Any
+
+from sentence_transformers import SentenceTransformer
+
 from app.config import settings
 
-embeddings_model = GoogleGenerativeAIEmbeddings(model=settings.gemini_embed_model, api_key=settings.gemini_api_key)
+
+_embedding_model: SentenceTransformer | None = None
+_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+
+
+def get_embedding_model() -> SentenceTransformer:
+    global _embedding_model
+
+    if _embedding_model is None:
+        _embedding_model = SentenceTransformer(
+            settings.embedding_model,
+            device=settings.embedding_device,
+        )
+
+    return _embedding_model
+
+
+def _encode(texts: list[str]) -> list[list[float]]:
+    if not texts:
+        return []
+
+    model = get_embedding_model()
+    vectors: Any = model.encode(
+        texts,
+        batch_size=settings.embedding_batch_size,
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+        show_progress_bar=False,
+    )
+    return vectors.tolist()
+
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    return embeddings_model.embed_documents(texts=texts)
+    return _encode(texts)
+
 
 def embed_queries(text: str) -> list[float]:
-    return embeddings_model.embed_query(text=text)
+    return _encode([f"{_QUERY_INSTRUCTION}{text}"])[0]

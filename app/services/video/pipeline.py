@@ -21,7 +21,7 @@ def _default_deno_path() -> str:
     return which or ""
 
 
-def download_yt_audio(video_url: str, output_dir: Path) -> Path:
+def download_yt_audio(video_url: str, output_dir: Path) -> tuple[Path, dict[str, Any]]:
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": str(output_dir / "audio.%(ext)s"),
@@ -47,14 +47,15 @@ def download_yt_audio(video_url: str, output_dir: Path) -> Path:
             ydl_opts["js_runtimes"] = {runtime: {}}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
-            ydl.download([video_url])
+            info = ydl.extract_info(video_url, download=True)
     except DownloadError as e:
         raise IngestionError(f"Failed to download YouTube audio: {e}") from e
 
-    audio_files = sorted(output_dir.glob("audio.*"))
-    if not audio_files:
-        raise IngestionError("yt-dlp reported success but no audio file was produced")
-    return audio_files[0]
+    audio_path = output_dir / "audio.mp3"
+    if not audio_path.exists():
+        raise IngestionError("yt-dlp reported success but audio.mp3 was not produced")
+
+    return audio_path, dict(info or {})
 
 CHUNK_SECONDS = 30 * 60
 
@@ -102,12 +103,17 @@ def get_transcript(audio_path: Path) -> dict:
 
         for chunk in audio_chunks:
             with open(chunk,"rb") as f:
-                response = groq_client.audio.transcriptions.create(
-                    model="whisper-large-v3-turbo",
-                    response_format="verbose_json",
-                    file=f,
-                    timestamp_granularities=["segment"]
-                )
+                try:
+                    response = groq_client.audio.transcriptions.create(
+                        model=settings.groq_whisper_model,
+                        response_format="verbose_json",
+                        file=f,
+                        timestamp_granularities=["segment"],
+                    )
+                except Exception as e:
+                    raise IngestionError(
+                        f"YouTube transcription failed: {e}"
+                    ) from e
             data = response.model_dump()
 
             for segment in data["segments"]:
