@@ -97,13 +97,6 @@ function createMessage(role, text = "") {
   const row = document.createElement("div");
   row.className = `chat-row ${role}`;
 
-  if (role === "assistant") {
-    const label = document.createElement("div");
-    label.className = "message-label";
-    label.innerHTML = "<i>H</i> Hereshko";
-    row.appendChild(label);
-  }
-
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
   if (role === "assistant" && !text) {

@@ -12,7 +12,17 @@ def index_document(document: Document) -> Document:
         if not chunks:
             raise IngestionError("No chunks could be created from the document.")
 
-        embeddings = embed_texts([chunk.content for chunk in chunks])
+        embedding_texts = [
+            f"""
+            Source Title: {document.title}
+            Source Type: {document.source_type}
+
+            Content: {chunk.content}
+            """
+            for chunk in chunks
+        ]
+
+        embeddings = embed_texts(embedding_texts)
 
         get_weaviate_service().insert_chunks(
             document=document,

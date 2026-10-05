@@ -4,7 +4,7 @@ from ddgs.exceptions import RatelimitException, DDGSException
 
 def _search_sync(query: str, max_results: int) -> list[dict]:
     with DDGS() as ddgs:
-        return ddgs.text(query, max_results=max_results, backend = "duckduckgo")
+        return ddgs.text(query, max_results=max_results, backend="auto")
 
 async def search_web(query: str, max_results: int = 8) -> list[dict]:
     search_results = []

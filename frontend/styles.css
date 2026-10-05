@@ -247,6 +247,11 @@ svg {
   border-left: 1px solid var(--line);
 }
 
+/* Remove the retired account control if an older cached DOM still contains it. */
+.avatar {
+  display: none !important;
+}
+
 .status-pill {
   display: flex;
   align-items: center;
@@ -267,17 +272,6 @@ svg {
   background: var(--accent);
   box-shadow: 0 0 9px var(--accent);
   animation: pulse 2.2s ease-in-out infinite;
-}
-
-.avatar {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  border: 1px solid rgba(199, 255, 94, 0.3);
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .workspace {
@@ -1080,30 +1074,6 @@ svg {
 
 .chat-row.assistant {
   align-items: flex-start;
-}
-
-.message-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 7px 7px;
-  color: var(--muted);
-  font-size: 8px;
-  font-weight: 750;
-  text-transform: uppercase;
-  letter-spacing: 1.1px;
-}
-
-.message-label i {
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border-radius: 5px;
-  color: #0a0c08;
-  background: var(--accent);
-  font-style: normal;
-  font-size: 8px;
 }
 
 .message-bubble {

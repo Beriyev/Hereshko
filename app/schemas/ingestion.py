@@ -13,3 +13,12 @@ class IngestResponse(BaseModel):
 class WebsiteIngestResponse(BaseModel):
     document_ids: list[str]
     status: str
+
+class DocumentProfile(BaseModel):
+    document_type: str
+    title: str
+    summary: str
+    topics: list[str]
+    keywords: list[str]
+    entities: list[str]
+    confidence: float

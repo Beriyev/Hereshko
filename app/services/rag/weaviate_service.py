@@ -7,6 +7,7 @@ from app.core.chunking import Chunk
 from app.core.exceptions import IngestionError, RetrievalError
 from typing import cast
 from app.core.normalization import Document, SourceType
+from app.services.rag.embeddings import embed_texts
 import json
 
 class WeaviateService:
@@ -24,6 +25,37 @@ class WeaviateService:
 
     def close(self) -> None:
         self.client.close()
+
+    @staticmethod
+    def _similarity(first: list[float], second: list[float]) -> float:
+        return sum(a*b for a,b in zip(first,second))
+
+    def _select_with_mmr(self, results:list[Chunk], result_vectors:list[list[float]], query_vector: list[float], limit: int, lambda_val: float = 0.75) -> list[Chunk]:
+        selected_chunks: list[Chunk] = []
+        selected_vectors: list[list[float]] = []
+
+        remaining = list(zip(results,result_vectors))
+
+        while remaining and len(selected_chunks) < limit:
+            best_index = 0
+            best_score = float("-inf")
+
+            for index, (remaining_chunk,remaining_vector) in enumerate(remaining):
+                relevance = self._similarity(remaining_vector,query_vector)
+                if selected_vectors:
+                    redundancy = max(self._similarity(selected_vector,remaining_vector) for selected_vector in selected_vectors)
+                else:
+                    redundancy = 0
+                score = lambda_val*relevance-(1-lambda_val)*redundancy
+                if score > best_score:
+                    best_score = score
+                    best_index = index
+
+            best_chunk,best_vector = remaining.pop(best_index)
+            selected_vectors.append(best_vector)
+            selected_chunks.append(best_chunk)
+
+        return selected_chunks
 
     def create_collection(self) -> None:
         if self.client.collections.exists("Chunks"):
@@ -153,8 +185,8 @@ class WeaviateService:
         try:
             response = collection.query.hybrid(
                 query=query,
-                alpha=0.75,
-                limit=limit,
+                alpha=0.6,
+                limit=limit*3,
                 vector=embedding,
                 rerank=Rerank(
                     prop="content",
@@ -183,6 +215,24 @@ class WeaviateService:
             )
             results.append(chunk)
 
-        return results
+        result_texts = [f"""
+        Source Title: {result.source_name or ""}
+        Source Type: {result.position_type.value}
+
+        Content:
+        {result.content}
+        """ for result in results]
+
+        embedded_results = embed_texts(result_texts)
+
+        final_chunks = self._select_with_mmr(
+            results=results,
+            result_vectors=embedded_results,
+            query_vector=embedding,
+            limit=limit,
+            lambda_val=0.75,
+        )
+
+        return final_chunks
 
         
