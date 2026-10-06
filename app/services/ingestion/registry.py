@@ -11,9 +11,9 @@ def extract_pptx_lazy(file_path: Path, notebook_id: str):
     try:
         from app.services.ingestion.pptx_extractor import extract_pptx
     except ModuleNotFoundError as error:
-        if error.name in {"paddle", "paddleocr", "win32com"}:
+        if error.name in {"paddle", "paddleocr"}:
             raise IngestionError(
-                "PPTX ingestion requires PaddleOCR and Microsoft PowerPoint dependencies."
+                "PPTX ingestion requires LibreOffice and PaddleOCR dependencies."
             ) from error
         raise
 

@@ -150,8 +150,10 @@ svg {
 
 .brand-name {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 22px;
-  letter-spacing: -0.6px;
+  font-size: 36px;
+  line-height: 0.88;
+  letter-spacing: -1.3px;
+  white-space: nowrap;
 }
 
 .brand-badge {
@@ -904,7 +906,7 @@ svg {
   height: 14px;
 }
 
-.summary-card > p {
+.summary-card > #summaryText {
   max-width: 790px;
   margin: 22px 0 19px;
   color: #b1b6bc;
@@ -1089,21 +1091,98 @@ svg {
 }
 
 .message-bubble strong,
-.summary-card > p strong {
+.summary-card > #summaryText strong {
   color: var(--text);
   font-weight: 750;
 }
 
 .message-bubble em,
-.summary-card > p em {
+.summary-card > #summaryText em {
   color: #e0e0e0;
   font-style: italic;
 }
 
 .message-bubble u,
-.summary-card > p u {
+.summary-card > #summaryText u {
   color: var(--text);
   text-underline-offset: 3px;
+}
+
+.message-bubble h1,
+.message-bubble h2,
+.message-bubble h3,
+.summary-card > #summaryText h1,
+.summary-card > #summaryText h2,
+.summary-card > #summaryText h3 {
+  margin: 0.7em 0 0.35em;
+  color: var(--text);
+  font-size: 1.05em;
+}
+
+.message-bubble p,
+.message-bubble ul,
+.message-bubble ol,
+.summary-card > #summaryText p,
+.summary-card > #summaryText ul,
+.summary-card > #summaryText ol {
+  margin: 0.45em 0;
+}
+
+.message-bubble ul,
+.message-bubble ol,
+.summary-card > #summaryText ul,
+.summary-card > #summaryText ol {
+  padding-left: 1.5em;
+}
+
+.message-bubble code,
+.summary-card > #summaryText code {
+  padding: 0.12em 0.35em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #e4efb8;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.message-bubble pre,
+.summary-card > #summaryText pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.message-bubble pre code,
+.summary-card > #summaryText pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.message-bubble table,
+.summary-card > #summaryText table {
+  width: 100%;
+  margin: 0.75em 0;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.message-bubble th,
+.message-bubble td,
+.summary-card > #summaryText th,
+.summary-card > #summaryText td {
+  padding: 5px 7px;
+  border: 1px solid var(--line-strong);
+  text-align: left;
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35em 0;
 }
 
 .user .message-bubble {
@@ -1122,6 +1201,18 @@ svg {
   vertical-align: -2px;
   background: var(--accent);
   animation: blink 720ms steps(1) infinite;
+}
+
+.streaming-reveal .stream-block {
+  display: block;
+  clip-path: inset(0 100% 0 0);
+  animation: streamSweep var(--stream-duration, 1400ms) cubic-bezier(0.65, 0, 0.35, 1) both;
+  will-change: clip-path;
+}
+
+@keyframes streamSweep {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
 }
 
 .answer-sources {
@@ -2250,7 +2341,7 @@ svg {
     display: none;
   }
 
-  .summary-card > p {
+  .summary-card > #summaryText {
     font-size: 13px;
   }
 
@@ -2311,6 +2402,10 @@ svg {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .streaming-reveal .stream-block {
+    animation-duration: var(--stream-duration, 760ms) !important;
   }
 }
 

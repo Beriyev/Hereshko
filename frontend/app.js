@@ -121,73 +121,119 @@ function wait(ms) {
 }
 
 async function streamText(target, text) {
-  target.classList.add("stream-cursor");
-  const words = text.split(/(\s+)/);
+  target.replaceChildren();
+  target.classList.add("stream-cursor", "streaming-reveal");
 
-  for (const word of words) {
-    if (/^\s+$/.test(word)) {
-      target.textContent += word;
-      continue;
+  const blocks = text.split(/\n{2,}/).filter((block) => block.trim());
+  const revealBlocks = blocks.length ? blocks : [text];
+
+  revealBlocks.forEach((block, index) => {
+    const element = document.createElement("span");
+    element.className = "stream-block";
+    element.textContent = block;
+    target.appendChild(element);
+
+    if (index < revealBlocks.length - 1) {
+      target.appendChild(document.createTextNode("\n\n"));
     }
+  });
 
-    for (const character of word) {
-      target.textContent += character;
-      const punctuationPause = /[.,!?]/.test(character) ? 46 : 0;
-      await wait(10 + Math.random() * 15 + punctuationPause);
-    }
-    scrollToLatest();
-  }
+  const duration = Math.min(3800, Math.max(1400, text.length * 6.5));
+  target.style.setProperty("--stream-duration", `${duration}ms`);
+  void target.offsetWidth;
+  scrollToLatest();
+  await wait(duration + 80);
 
-  target.classList.remove("stream-cursor");
+  target.classList.remove("stream-cursor", "streaming-reveal");
+  target.style.removeProperty("--stream-duration");
 }
 
 function renderFormattedText(target, text) {
   target.replaceChildren();
+  let usedMarkdownRenderer = false;
 
-  function appendFormatted(container, value) {
-    const markerPattern = /(\[\d+\]|\*\*)/g;
-    let cursor = 0;
-    let match;
-
-    while ((match = markerPattern.exec(value)) !== null) {
-      const token = match[0];
-      const start = match.index;
-
-      if (start > cursor) {
-        container.appendChild(document.createTextNode(value.slice(cursor, start)));
-      }
-
-      if (token.startsWith("[")) {
-        const citation = document.createElement("strong");
-        const underline = document.createElement("u");
-        underline.textContent = token;
-        citation.appendChild(underline);
-        container.appendChild(citation);
-        cursor = start + token.length;
-        continue;
-      }
-
-      const closingIndex = value.indexOf(token, start + token.length);
-      if (closingIndex === -1) {
-        container.appendChild(document.createTextNode(token));
-        cursor = start + token.length;
-        continue;
-      }
-
-      const element = document.createElement("strong");
-      appendFormatted(element, value.slice(start + token.length, closingIndex));
-      container.appendChild(element);
-      cursor = closingIndex + token.length;
-      markerPattern.lastIndex = cursor;
-    }
-
-    if (cursor < value.length) {
-      container.appendChild(document.createTextNode(value.slice(cursor)));
-    }
+  if (window.marked && window.DOMPurify) {
+    usedMarkdownRenderer = true;
+    marked.setOptions({ breaks: true, gfm: true });
+    // Hereshko supports bold with **double asterisks** only. Remove stray
+    // single markers before Markdown parsing so they cannot leak into output.
+    const normalizedMarkdown = text.replace(/(?<!\*)\*(?!\*)/g, "");
+    target.innerHTML = DOMPurify.sanitize(marked.parse(normalizedMarkdown), {
+      USE_PROFILES: { html: true },
+    });
+  } else {
+    renderBasicFormatting(target, text);
   }
 
-  const withoutSingleAsterisks = text.replace(/(?<!\*)\*(?!\*)/g, "");
-  appendFormatted(target, withoutSingleAsterisks);
+  if (usedMarkdownRenderer) {
+    decorateCitationMarkers(target);
+  }
+
+  if (window.renderMathInElement) {
+    renderMathInElement(target, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+      ],
+      throwOnError: false,
+    });
+  }
+}
+
+function renderBasicFormatting(target, text) {
+  const normalizedText = text.replace(/(?<!\*)\*(?!\*)/g, "");
+  const tokens = normalizedText.split(/(\*\*[\s\S]*?\*\*|\[\d+\])/g);
+
+  tokens.forEach((token) => {
+    if (!token) return;
+
+    if (token.startsWith("**") && token.endsWith("**")) {
+      const strong = document.createElement("strong");
+      strong.textContent = token.slice(2, -2);
+      target.appendChild(strong);
+      return;
+    }
+
+    if (/^\[\d+\]$/.test(token)) {
+      const strong = document.createElement("strong");
+      const underline = document.createElement("u");
+      underline.textContent = token;
+      strong.appendChild(underline);
+      target.appendChild(strong);
+      return;
+    }
+
+    target.appendChild(document.createTextNode(token));
+  });
+}
+
+function decorateCitationMarkers(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  let current;
+
+  while ((current = walker.nextNode())) textNodes.push(current);
+
+  textNodes.forEach((node) => {
+    if (!/\[\d+\]/.test(node.nodeValue)) return;
+
+    const fragment = document.createDocumentFragment();
+    node.nodeValue.split(/(\[\d+\])/g).forEach((part) => {
+      if (/^\[\d+\]$/.test(part)) {
+        const marker = document.createElement("strong");
+        const underline = document.createElement("u");
+        underline.textContent = part;
+        marker.appendChild(underline);
+        fragment.appendChild(marker);
+      } else if (part) {
+        fragment.appendChild(document.createTextNode(part));
+      }
+    });
+
+    node.parentNode.replaceChild(fragment, node);
+  });
 }
 
 function addCitationCards(row, citations = []) {

@@ -17,6 +17,18 @@ if ($LASTEXITCODE -ne 0) {
     throw "Python dependency sync failed."
 }
 
+$sitePackages = Join-Path $PSScriptRoot ".venv\Lib\site-packages"
+$cudaRuntimePaths = @(
+    (Join-Path $sitePackages "nvidia\cudnn\bin"),
+    (Join-Path $sitePackages "nvidia\cublas\bin"),
+    (Join-Path $sitePackages "nvidia\cuda_runtime\bin"),
+    (Join-Path $sitePackages "nvidia\cuda_nvrtc\bin")
+) | Where-Object { Test-Path -LiteralPath $_ }
+
+if ($cudaRuntimePaths.Count -gt 0) {
+    $env:Path = (($cudaRuntimePaths + $env:Path) -join ";")
+}
+
 Write-Host "Starting Weaviate..." -ForegroundColor Cyan
 docker compose up -d
 

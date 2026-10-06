@@ -179,14 +179,22 @@ class WeaviateService:
                 f"Failed to delete notebook chunks from Weaviate: {e}"
             ) from e
 
-    def retrieve_chunks(self, query: str, embedding: list[float], limit: int, notebook_id: str) -> list[Chunk]:
+    def retrieve_chunks(
+        self,
+        query: str,
+        embedding: list[float],
+        limit: int,
+        notebook_id: str,
+        candidate_limit: int | None = None,
+    ) -> list[Chunk]:
         collection = self.client.collections.get("Chunks")
+        candidate_limit = candidate_limit or limit * 3
 
         try:
             response = collection.query.hybrid(
                 query=query,
                 alpha=0.6,
-                limit=limit*3,
+                limit=candidate_limit,
                 vector=embedding,
                 rerank=Rerank(
                     prop="content",

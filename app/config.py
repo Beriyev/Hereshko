@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     yt_deno_path: str = ""
 
     embedding_model: str = "BAAI/bge-large-en-v1.5"
-    embedding_device: str = "cpu"
+    embedding_device: str = "cuda"
     embedding_batch_size: int = 8
 
     tavily_api_key: str = ""

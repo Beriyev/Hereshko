@@ -25,8 +25,11 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "paddleocr>=3.7.0",
-    "paddlepaddle>=3.3.1",
-    "pywin32>=311",
+    "paddlepaddle-gpu==3.2.0; sys_platform == 'win32'",
+    "paddlepaddle>=3.3.1; sys_platform != 'win32'",
+    "nvidia-cublas-cu12==12.9.2.10; sys_platform == 'win32'",
+    "nvidia-cuda-runtime-cu12==12.9.79; sys_platform == 'win32'",
+    "nvidia-cudnn-cu12==9.27.0.42; sys_platform == 'win32'",
     "sentence-transformers>=5.1.2",
     "python-docx>=1.2.0",
     "python-dotenv>=1.2.2",
@@ -41,3 +44,11 @@ dependencies = [
     "youtube-transcript-api>=1.2.4",
     "yt-dlp>=2025.7.21",
 ]
+
+[[tool.uv.index]]
+name = "paddle-gpu-cu126"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cu126/"
+explicit = true
+
+[tool.uv.sources]
+paddlepaddle-gpu = { index = "paddle-gpu-cu126" }

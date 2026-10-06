@@ -1,5 +1,6 @@
 from typing import Any
 
+import torch
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
@@ -13,9 +14,17 @@ def get_embedding_model() -> SentenceTransformer:
     global _embedding_model
 
     if _embedding_model is None:
+        device = settings.embedding_device
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            print(
+                "CUDA was requested for embeddings, but PyTorch was built without CUDA. "
+                "Falling back to CPU."
+            )
+            device = "cpu"
+
         _embedding_model = SentenceTransformer(
             settings.embedding_model,
-            device=settings.embedding_device,
+            device=device,
         )
 
     return _embedding_model

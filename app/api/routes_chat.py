@@ -6,6 +6,7 @@ from app.services.rag.memory import ConversationStore
 from app.services.rag.weaviate_service import WeaviateService
 from app.services.rag.llm import generate_answer
 from app.core.exceptions import ChatError, RetrievalError, HereshkoError
+from app.storage.database import get_notebook
 import asyncio
 import traceback
 from app.services.rag.web_agent import gather_web_sources
@@ -22,11 +23,16 @@ async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends
     except HereshkoError as e:
         raise HTTPException(status_code=500,detail=f"Embedding failed: {e}")
 
+    notebook = get_notebook(request.notebook_id)
+    source_count = notebook["source_count"] if notebook else 0
+    retrieval_limit = 24 if source_count > 5 else 15
+
     try:
         retrieved_chunks = weaviate_service.retrieve_chunks(
             query=request.query,
             embedding=embeddings,
             limit=8,
+            candidate_limit=retrieval_limit,
             notebook_id=request.notebook_id
         )
     except RetrievalError as e:

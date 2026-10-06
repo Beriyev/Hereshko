@@ -1,14 +1,13 @@
 import tempfile
 import uuid
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import paddle
-
-import pythoncom
-import win32com.client
-from paddleocr import PaddleOCR
-
+import shutil
+import subprocess
 from app.core.exceptions import IngestionError
+from paddleocr import PaddleOCR
 from app.core.normalization import Document, SourceType
 
 _ocr = None
@@ -18,57 +17,68 @@ def get_ocr():
 
     if _ocr is None:
         if paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count()>0:
-            paddle.device.set_device("gpu:0")
+            device = "gpu:0"
         else:
-            paddle.device.set_device("cpu")
+            device = "cpu"
+
+        paddle.device.set_device(device)
 
         _ocr = PaddleOCR(
             lang="en",
+            device=device,
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
-            use_textline_orientation=False
+            use_textline_orientation=False,
+            enable_mkldnn=False,
         )
 
     return _ocr
 
 def convert_pptx_to_pdf(file_path: Path, output_pdf: Path) -> None:
-    powerpoint = None
-    presentation = None
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
 
-    pythoncom.CoInitialize()
+    if soffice is None and sys.platform == "win32":
+        windows_paths = (
+            Path(r"C:\Program Files\LibreOffice\program\soffice.exe"),
+            Path(r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"),
+        )
+        soffice_path = next(
+            (path for path in windows_paths if path.exists()),
+            None,
+        )
+        soffice = str(soffice_path) if soffice_path else None
+
+    if soffice is None:
+        raise IngestionError("LibreOffice was not found. Install LibreOffice and add it to PATH.")
+    output_pdf.parent.mkdir(parents=True,exist_ok=True)
 
     try:
-        powerpoint = win32com.client.DispatchEx("PowerPoint.Application")
-        powerpoint.Visible = True
-        powerpoint.DisplayAlerts = 1
-
-        presentation = powerpoint.Presentations.Open(
-            str(file_path),
-            ReadOnly = True,
-            WithWindow = False,
+        subprocess.run(
+            [
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(output_pdf.parent),
+                str(file_path)
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+            timeout=120
         )
-        # 32 means PDF in PowerPoint's PpSaveAsFileType enum.
-        presentation.SaveAs(
-            str(output_pdf),
-            32,
-        )
-    except Exception as e:
+    except subprocess.TimeoutExpired as error:
+        raise IngestionError("LibreOffice timed out while converting the PPTX.") from error
+    except subprocess.CalledProcessError as error:
+        raise IngestionError(f"LibreOffice failed to convert the PPTX: {error.stderr}") from error
+    output_file = output_pdf.parent / f"{file_path.stem}.pdf"
+    if not output_file.exists():
         raise IngestionError(
-            f"Error: {e}"
-        ) from e
-    finally:
-        if presentation is not None:
-            try:
-                presentation.close()
-            except Exception:
-                pass
-
-        if powerpoint is not None:
-            try:
-                powerpoint.Quit()
-            except Exception:
-                pass
-        pythoncom.CoUninitialize()
+            "LibreOffice completed but did not create the PDF."
+        )
+    if output_file!=output_pdf:
+        output_file.replace(output_pdf)
 
 def extract_pptx(file_path: Path, notebook_id: str) -> Document:
     try:
@@ -135,7 +145,7 @@ def extract_pptx(file_path: Path, notebook_id: str) -> Document:
                 "original_filename": file_path.name,
                 "file_size_bytes": file_path.stat().st_size,
                 "slides_count": slide_count,
-                "renderer": "microsoft-powerpoint",
+                "renderer": "libreoffice",
                 "ocr_engine": "paddleocr",
                 "boundaries": boundaries,
             },
