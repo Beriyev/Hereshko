@@ -3,7 +3,10 @@ from app.config import settings
 from pathlib import Path
 import shutil
 import tempfile
+import os
+import sys
 import yt_dlp
+from yt_dlp.cookies import CookieLoadError, SUPPORTED_BROWSERS, SUPPORTED_KEYRINGS
 from yt_dlp.utils import DownloadError
 from ffmpy import FFmpeg, FFExecutableNotFoundError, FFRuntimeError
 from app.core.exceptions import IngestionError
@@ -21,6 +24,78 @@ def _default_deno_path() -> str:
     return which or ""
 
 
+def _configure_youtube_options(ydl_opts: dict[str, Any], *, use_cookies: bool = False) -> None:
+    browser = settings.yt_cookies_browser.strip().lower().replace("_", "-") if use_cookies else ""
+    profile = settings.yt_cookies_profile.strip() or None
+    authenticated = use_cookies and bool(settings.yt_cookies_file or browser)
+    if use_cookies and settings.yt_cookies_file:
+        cookie_path = Path(settings.yt_cookies_file).expanduser()
+        if not cookie_path.is_file():
+            raise IngestionError("The configured YouTube cookies file does not exist.")
+        ydl_opts["cookiefile"] = str(cookie_path)
+    elif browser:
+        if browser in ("opera-gx", "opera gx"):
+            browser = "opera"
+            if profile is None:
+                if sys.platform != "win32":
+                    raise IngestionError("Set YT_COOKIES_PROFILE to your Opera GX profile path.")
+                roaming = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+                profile = str(roaming / "Opera Software" / "Opera GX Stable")
+        if browser not in SUPPORTED_BROWSERS:
+            raise IngestionError(
+                f"Unsupported cookie browser '{browser}'. Use one of "
+                f"{', '.join(sorted(SUPPORTED_BROWSERS))}, opera-gx, or YT_COOKIES_FILE."
+            )
+        keyring = settings.yt_cookies_keyring.strip().upper() or None
+        if keyring is not None and keyring not in SUPPORTED_KEYRINGS:
+            raise IngestionError("Unsupported YT_COOKIES_KEYRING setting.")
+        container = settings.yt_cookies_container.strip() or None
+        ydl_opts["cookiesfrombrowser"] = (browser, profile, keyring, container)
+
+    # Authenticated requests need yt-dlp's cookie-compatible client defaults.
+    if settings.yt_player_client and not authenticated:
+        clients = [c.strip() for c in settings.yt_player_client.split(",") if c.strip()]
+        ydl_opts["extractor_args"] = {"youtube": {"player_client": clients}}
+    if settings.yt_js_runtime:
+        runtime = settings.yt_js_runtime
+        if runtime == "deno":
+            deno_path = settings.yt_deno_path or _default_deno_path()
+            ydl_opts["js_runtimes"] = {"deno": {"path": deno_path}} if deno_path else {"deno": {}}
+        else:
+            ydl_opts["js_runtimes"] = {runtime: {}}
+
+
+def _extract_youtube_info(video_url: str, ydl_opts: dict[str, Any], *, download: bool) -> dict[str, Any]:
+    options = dict(ydl_opts)
+    _configure_youtube_options(options)
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(video_url, download=download)
+    except DownloadError as error:
+        # Public videos should never need access to a live browser database.
+        # Retry with configured credentials only when YouTube requests authentication.
+        message = str(error).lower()
+        needs_auth = any(marker in message for marker in (
+            "sign in", "login required", "log in", "confirm your age", "age-restricted", "private video",
+        ))
+        if not needs_auth or not (settings.yt_cookies_file or settings.yt_cookies_browser):
+            raise IngestionError(f"YouTube extraction failed: {error}") from error
+
+        options = dict(ydl_opts)
+        _configure_youtube_options(options, use_cookies=True)
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                info = ydl.extract_info(video_url, download=download)
+        except (DownloadError, CookieLoadError) as auth_error:
+            raise IngestionError(
+                f"YouTube requested authentication and the configured cookie fallback failed: {auth_error}"
+            ) from auth_error
+
+    if info is None:
+        raise IngestionError(f"No extractable info returned for: {video_url}")
+    return dict(info)
+
+
 def download_yt_audio(video_url: str, output_dir: Path) -> tuple[Path, dict[str, Any]]:
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
@@ -35,27 +110,13 @@ def download_yt_audio(video_url: str, output_dir: Path) -> tuple[Path, dict[str,
         }],
         "postprocessor_args": ["-ar", "16000", "-ac", "1"],
     }
-    if settings.yt_player_client:
-        clients = [c.strip() for c in settings.yt_player_client.split(",") if c.strip()]
-        ydl_opts["extractor_args"] = {"youtube": [f"player_client={c}" for c in clients]}
-    if settings.yt_js_runtime:
-        runtime = settings.yt_js_runtime
-        if runtime == "deno":
-            deno_path = settings.yt_deno_path or _default_deno_path()
-            ydl_opts["js_runtimes"] = {"deno": {"path": deno_path}} if deno_path else {"deno": {}}
-        else:
-            ydl_opts["js_runtimes"] = {runtime: {}}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
-            info = ydl.extract_info(video_url, download=True)
-    except DownloadError as e:
-        raise IngestionError(f"Failed to download YouTube audio: {e}") from e
+    info = _extract_youtube_info(video_url, ydl_opts, download=True)
 
     audio_path = output_dir / "audio.mp3"
     if not audio_path.exists():
         raise IngestionError("yt-dlp reported success but audio.mp3 was not produced")
 
-    return audio_path, dict(info or {})
+    return audio_path, info
 
 CHUNK_SECONDS = 30 * 60
 
@@ -156,23 +217,7 @@ def get_metadata(video_url: str) -> dict:
         "noplaylist": True,
         "skip_download": True,
     }
-    if settings.yt_player_client:
-        clients = [c.strip() for c in settings.yt_player_client.split(",") if c.strip()]
-        ydl_opts["extractor_args"] = {"youtube": [f"player_client={c}" for c in clients]}
-    if settings.yt_js_runtime:
-        runtime = settings.yt_js_runtime
-        if runtime == "deno":
-            deno_path = settings.yt_deno_path or _default_deno_path()
-            ydl_opts["js_runtimes"] = {"deno": {"path": deno_path}} if deno_path else {"deno": {}}
-        else:
-            ydl_opts["js_runtimes"] = {runtime: {}}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl: #type: ignore[arg-type]
-            info = ydl.extract_info(url=video_url,download=False)
-            if info is None:
-                raise IngestionError(f"No extractable info returned for: {video_url}")
-    except DownloadError as e:
-        raise IngestionError(e) from e
+    info = _extract_youtube_info(video_url, ydl_opts, download=False)
     
     return {
         "title": info.get("title"),

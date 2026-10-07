@@ -178,13 +178,13 @@
 
           <div class="composer-wrap">
             <form class="composer" id="chatForm">
-              <button type="button" class="composer-tool" aria-label="Attach source">
-                <svg viewBox="0 0 24 24"><path d="m20.5 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9.1-9.1a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>
+              <button type="button" class="mode-button composer-mode" id="modeButton" aria-pressed="false" title="Switch between L1 and L2">
+                <i></i><span id="modeLabel">L1</span>
               </button>
               <textarea id="chatInput" rows="1" placeholder="Ask your notebook anything…"></textarea>
               <div class="composer-actions">
-                <button type="button" class="mode-button" id="modeButton" aria-pressed="false">
-                  <i></i><span id="modeLabel">Grounded</span>
+                <button type="button" class="mode-button" id="webSearchButton" aria-pressed="false" title="Web Search off" aria-label="Web Search off">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></svg><span>Web Search</span>
                 </button>
                 <button type="submit" class="send-button" aria-label="Send message">
                   <svg viewBox="0 0 24 24"><path d="M12 19V5m0 0L6.5 10.5M12 5l5.5 5.5" /></svg>

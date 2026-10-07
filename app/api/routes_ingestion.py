@@ -15,7 +15,8 @@ router = APIRouter()
 async def upload_file(file: UploadFile, notebook_id: str = Form(...))-> IngestResponse:
     if file.filename is None:
         raise HTTPException(status_code=400, detail="Filename is missing")
-    path = Path(file.filename)
+    original_filename = Path(file.filename.replace("\\", "/")).name
+    path = Path(original_filename)
     extn = path.suffix.lower()
 
     source_type = extension_to_source_type_mapping.get(extn)
@@ -29,6 +30,9 @@ async def upload_file(file: UploadFile, notebook_id: str = Form(...))-> IngestRe
     try:
         ingester = get_ingester(source_type)
         document = ingester(temp_file_path, notebook_id)
+        document.title = original_filename
+        document.source_identifier = original_filename
+        document.raw_metadata["original_filename"] = original_filename
         document = await asyncio.to_thread(index_document,document=document)
     except IngestionError as e:
         raise HTTPException(status_code=400, detail=str(e))

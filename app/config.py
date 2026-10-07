@@ -12,9 +12,14 @@ class Settings(BaseSettings):
     groq_whisper_model: str = "whisper-large-v3-turbo"
     groq_llm_model: str = "qwen/qwen3.8-27b"
 
-    yt_player_client: str = "android,tv"
+    yt_player_client: str = ""
     yt_js_runtime: str = "deno"
     yt_deno_path: str = ""
+    yt_cookies_browser: str = ""
+    yt_cookies_profile: str = ""
+    yt_cookies_file: str = ""
+    yt_cookies_keyring: str = ""
+    yt_cookies_container: str = ""
 
     embedding_model: str = "BAAI/bge-large-en-v1.5"
     embedding_device: str = "cuda"

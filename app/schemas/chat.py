@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Literal
 
 
 class ChatRequest(BaseModel):
@@ -6,6 +7,7 @@ class ChatRequest(BaseModel):
     query: str
     session_id: str | None = None
     web_search: bool = False
+    mode: Literal["l1", "l2"] = "l1"
 
 class Citation(BaseModel):
     marker: int

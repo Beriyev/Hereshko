@@ -10,7 +10,7 @@ from app.schemas.notebook import (
     SummaryResponse,
 )
 from app.services.rag.llm import generate_preview_summary
-from app.storage.database import delete_all_sources, delete_source, get_notebook, list_sources, update_notebook_title
+from app.storage.database import delete_all_sources, delete_source, get_notebook, list_sources, update_notebook_title, notebook_summaries
 from app.clients.weaviate_client import get_weaviate_service
 from app.services.rag.weaviate_service import WeaviateService
 from app.schemas.notebook import SourceResponse
@@ -185,6 +185,8 @@ async def generate_notebook_summary(notebook_id: str) -> SummaryResponse:
             status_code=500,
             detail=f"Summary generation failed: {error}",
         ) from error
+
+    notebook_summaries[notebook_id] = summary.summary
 
     return SummaryResponse(
         title=summary.title,

@@ -7,7 +7,6 @@ from app.core.chunking import Chunk
 from app.core.exceptions import IngestionError, RetrievalError
 from typing import cast
 from app.core.normalization import Document, SourceType
-from app.services.rag.embeddings import embed_texts
 import json
 
 class WeaviateService:
@@ -196,6 +195,7 @@ class WeaviateService:
                 alpha=0.6,
                 limit=candidate_limit,
                 vector=embedding,
+                include_vector=True,
                 rerank=Rerank(
                     prop="content",
                     query=query
@@ -206,6 +206,7 @@ class WeaviateService:
             raise RetrievalError(f"Failed to retrieve chunks from Weaviate: {e}") from e
 
         results = []
+        result_vectors = []
 
         for obj in response.objects:
             chunk = Chunk(
@@ -221,21 +222,17 @@ class WeaviateService:
                 metadata=cast(dict,json.loads(cast(str,obj.properties.get("metadata") or "{}"))),
                 source_name=cast(str,obj.properties.get("source_name"))
             )
+
+            vector = obj.vector
+            if isinstance(vector,dict):
+                vector = vector.get("default")
+
             results.append(chunk)
-
-        result_texts = [f"""
-        Source Title: {result.source_name or ""}
-        Source Type: {result.position_type.value}
-
-        Content:
-        {result.content}
-        """ for result in results]
-
-        embedded_results = embed_texts(result_texts)
+            result_vectors.append(cast(list[float],vector))
 
         final_chunks = self._select_with_mmr(
             results=results,
-            result_vectors=embedded_results,
+            result_vectors=result_vectors,
             query_vector=embedding,
             limit=limit,
             lambda_val=0.75,

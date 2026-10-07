@@ -14,6 +14,7 @@ const elements = {
   input: document.getElementById("chatInput"),
   modeButton: document.getElementById("modeButton"),
   modeLabel: document.getElementById("modeLabel"),
+  webSearchButton: document.getElementById("webSearchButton"),
   notebookTitle: document.getElementById("notebookTitle"),
   renameNotebook: document.getElementById("renameNotebook"),
   sourceCount: document.getElementById("sourceCount"),
@@ -44,6 +45,7 @@ let isStreaming = false;
 let toastTimer;
 let savedNotebookTitle = "Untitled notebook";
 let webSearchMode = false;
+let chatMode = "l1";
 
 function showToast(message) {
   clearTimeout(toastTimer);
@@ -313,7 +315,8 @@ function renderSources(sources) {
     const menu = document.createElement("button");
     menu.className = "source-menu";
     menu.type = "button";
-    menu.setAttribute("aria-label", `Options for ${source.title}`);
+    menu.setAttribute("aria-label", `Remove ${source.title}`);
+    menu.title = `Remove ${source.title}`;
     menu.addEventListener("click", async (event) => {
       event.stopPropagation();
       if (!window.confirm(`Remove ${source.title} from this notebook?`)) return;
@@ -331,7 +334,7 @@ function renderSources(sources) {
         showToast(`Source removal failed: ${error.message}`);
       }
     });
-    menu.textContent = "•••";
+    menu.textContent = "\u2715";
 
     card.append(icon, details, menu);
     card.addEventListener("click", () => {
@@ -409,10 +412,10 @@ async function refreshNotebookOverview(showSuccess = true) {
     await Promise.all([
       streamText(elements.generatedTitle, payload.title),
       streamText(elements.summaryText, payload.summary),
+      streamText(elements.summaryUpdated, `Updated ${new Date(payload.updated_at).toLocaleString()}`),
     ]);
     renderFormattedText(elements.summaryText, payload.summary);
     elements.summarySourceCount.textContent = payload.source_count;
-    elements.summaryUpdated.textContent = `Updated ${new Date(payload.updated_at).toLocaleString()}`;
     if (showSuccess) showToast("Notebook summary refreshed");
   } finally {
     elements.summaryText.classList.remove("refreshing");
@@ -431,27 +434,136 @@ elements.renameNotebook.addEventListener("click", () => {
   elements.notebookTitle.select();
 });
 
+function createL2Panel(row) {
+  const panel = document.createElement("details");
+  panel.className = "l2-research is-working";
+  panel.open = true;
+  const heading = document.createElement("summary");
+  heading.textContent = "L2 · Planning questions…";
+  heading.setAttribute("aria-live", "polite");
+  const list = document.createElement("div");
+  list.className = "l2-questions";
+  panel.append(heading, list);
+  row.prepend(panel);
+  const questions = [];
+
+  return {
+    async update(event) {
+      if (event.type === "planned") {
+        heading.textContent = `L2 · Investigating ${event.questions.length} questions`;
+        event.questions.forEach((question, index) => {
+          const item = document.createElement("details");
+          item.className = "l2-question";
+          item.style.setProperty("--l2-order", index);
+          const title = document.createElement("summary");
+          const label = document.createElement("span");
+          label.textContent = question;
+          const status = document.createElement("small");
+          status.textContent = "Waiting";
+          title.append(label, status);
+          const answer = document.createElement("div");
+          answer.className = "l2-subanswer message-bubble";
+          item.append(title, answer);
+          list.appendChild(item);
+          questions.push({ item, status, answer });
+        });
+      } else if (event.type === "answering") {
+        questions[event.index].status.textContent = "Searching…";
+        questions[event.index].item.classList.add("is-searching");
+        questions[event.index].item.open = true;
+      } else if (event.type === "answered") {
+        const question = questions[event.index];
+        question.item.classList.remove("is-searching");
+        question.status.textContent = "Receiving answer…";
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          await streamText(question.answer, event.answer);
+        }
+        renderFormattedText(question.answer, event.answer);
+        addCitationCards(question.item, event.sources);
+        question.status.textContent = "Answered";
+      } else if (event.type === "synthesizing") {
+        heading.textContent = "L2 · Preparing final answer…";
+      } else if (event.type === "done") {
+        heading.textContent = `L2 · ${questions.length} questions researched`;
+        panel.classList.remove("is-working");
+        panel.open = false;
+      }
+      scrollToLatest();
+    },
+    fail(message) {
+      panel.classList.remove("is-working");
+      questions.forEach((question) => question.item.classList.remove("is-searching"));
+      heading.textContent = `L2 · ${message}`;
+      questions.filter((question) => question.status.textContent !== "Answered")
+        .forEach((question) => { question.status.textContent = "Not completed"; });
+    },
+  };
+}
+
+async function requestL2(body, panel) {
+  const response = await fetch(`${apiBaseUrl}/chat/l2`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`L2 request failed (${response.status})`);
+  }
+  if (!response.body) throw new Error("L2 progress stream is unavailable.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let payload;
+  async function handleLine(line) {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "error") throw new Error(event.message);
+    await panel.update(event);
+    if (event.type === "done") payload = event;
+  }
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) await handleLine(line);
+      if (done) break;
+    }
+    await handleLine(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+  if (!payload) throw new Error("L2 stream ended before the final answer.");
+  return payload;
+}
+
 async function submitPrompt(prompt) {
   const cleanPrompt = prompt.trim();
   if (!cleanPrompt || isStreaming) return;
 
   isStreaming = true;
+  elements.modeButton.disabled = true;
+  elements.webSearchButton.disabled = true;
   elements.empty?.remove();
   createMessage("user", cleanPrompt);
   elements.input.value = "";
   autoResizeTextarea();
   scrollToLatest();
   const { row, bubble } = createMessage("assistant");
+  const research = chatMode === "l2" ? createL2Panel(row) : null;
   try {
-    const payload = await apiRequest("/chat", {
+    const body = {
+      notebook_id: notebookId,
+      query: cleanPrompt,
+      session_id: sessionId,
+      web_search: webSearchMode,
+      mode: chatMode,
+    };
+    const payload = research ? await requestL2(body, research) : await apiRequest("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        notebook_id: notebookId,
-        query: cleanPrompt,
-        session_id: sessionId,
-        web_search: webSearchMode,
-      }),
+      body: JSON.stringify(body),
     });
     const answer = payload.answer || "The notebook returned an empty answer.";
     bubble.classList.remove("typing-bubble");
@@ -460,12 +572,15 @@ async function submitPrompt(prompt) {
     renderFormattedText(bubble, answer);
     addCitationCards(row, payload.sources);
   } catch (error) {
+    research?.fail(error.message);
     bubble.classList.remove("typing-bubble");
     bubble.textContent = `I couldn’t reach the Hereshko backend: ${error.message}`;
     showToast("Chat request failed");
   } finally {
     scrollToLatest();
     isStreaming = false;
+    elements.modeButton.disabled = false;
+    elements.webSearchButton.disabled = false;
   }
 }
 
@@ -475,11 +590,21 @@ elements.form.addEventListener("submit", (event) => {
 });
 
 elements.modeButton.addEventListener("click", () => {
+  chatMode = chatMode === "l1" ? "l2" : "l1";
+  elements.modeButton.classList.toggle("active", chatMode === "l2");
+  elements.modeButton.setAttribute("aria-pressed", String(chatMode === "l2"));
+  elements.modeLabel.textContent = chatMode.toUpperCase();
+  showToast(`${chatMode.toUpperCase()} mode enabled`);
+});
+
+elements.webSearchButton.addEventListener("click", () => {
   webSearchMode = !webSearchMode;
-  elements.modeButton.classList.toggle("active", webSearchMode);
-  elements.modeButton.setAttribute("aria-pressed", String(webSearchMode));
-  elements.modeLabel.textContent = webSearchMode ? "Web Search" : "Grounded";
-  showToast(webSearchMode ? "Web Search mode enabled" : "Grounded mode enabled");
+  elements.webSearchButton.classList.toggle("active", webSearchMode);
+  elements.webSearchButton.setAttribute("aria-pressed", String(webSearchMode));
+  const label = webSearchMode ? "Web Search on" : "Web Search off";
+  elements.webSearchButton.setAttribute("aria-label", label);
+  elements.webSearchButton.title = label;
+  showToast(webSearchMode ? "Web Search enabled" : "Web Search disabled");
 });
 
 elements.input.addEventListener("input", autoResizeTextarea);
@@ -514,7 +639,7 @@ async function uploadFiles(files) {
     card.innerHTML = `
       <span class="file-icon note">${extension.slice(0, 3)}</span>
       <div><strong></strong><small>Queued · Preparing index</small></div>
-      <button class="source-menu" aria-label="Source options">•••</button>
+      <button class="source-menu" type="button" aria-label="Uploading source" disabled>&#10005;</button>
     `;
     card.querySelector("strong").textContent = file.name;
     document.getElementById("sourceList").prepend(card);
@@ -579,7 +704,7 @@ document.getElementById("addYoutube").addEventListener("click", async () => {
     card.innerHTML = `
       <span class="file-icon video">YT</span>
       <div><strong>YouTube video</strong><small>Transcript indexed</small></div>
-      <button class="source-menu" aria-label="Source options">•••</button>
+      <button class="source-menu" type="button" aria-label="Loading source" disabled>&#10005;</button>
     `;
     document.getElementById("sourceList").prepend(card);
     await loadNotebook();

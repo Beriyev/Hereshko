@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 DATABASE_PATH = DATA_DIR / "hereshko.db"
 PREVIEW_CHARS = 2000
+notebook_summaries: dict[str, str] = {}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -135,6 +136,8 @@ def save_source(document: Document) -> None:
             (now, document.notebook_id),
         )
 
+    notebook_summaries.pop(document.notebook_id, None)
+
 
 def get_notebook(notebook_id: str) -> dict | None:
     with get_connection() as connection:
@@ -226,6 +229,7 @@ def delete_source(document_id: str, notebook_id: str) -> bool:
             (now, notebook_id),
         )
 
+    notebook_summaries.pop(notebook_id, None)
     return True
 
 
@@ -246,4 +250,5 @@ def delete_all_sources(notebook_id: str) -> int:
             (now, notebook_id),
         )
 
+    notebook_summaries.pop(notebook_id, None)
     return cursor.rowcount

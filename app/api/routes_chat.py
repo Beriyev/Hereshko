@@ -1,15 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.rag.embeddings import embed_queries
+from app.services.rag.l1 import answer_l1
+from app.services.rag.l2 import l2_orchestrator
 from app.clients.weaviate_client import get_weaviate_service
 from app.services.rag.memory import ConversationStore
 from app.services.rag.weaviate_service import WeaviateService
-from app.services.rag.llm import generate_answer
-from app.core.exceptions import ChatError, RetrievalError, HereshkoError
-from app.storage.database import get_notebook
-import asyncio
-import traceback
-from app.services.rag.web_agent import gather_web_sources
 
 router = APIRouter()
 
@@ -18,54 +16,15 @@ conversation_store = ConversationStore()
 @router.post("/chat",response_model=ChatResponse)
 async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends(get_weaviate_service)) -> ChatResponse:
 
-    try:
-        embeddings = embed_queries(request.query)
-    except HereshkoError as e:
-        raise HTTPException(status_code=500,detail=f"Embedding failed: {e}")
-
-    notebook = get_notebook(request.notebook_id)
-    source_count = notebook["source_count"] if notebook else 0
-    retrieval_limit = 24 if source_count > 5 else 15
-
-    try:
-        retrieved_chunks = weaviate_service.retrieve_chunks(
-            query=request.query,
-            embedding=embeddings,
-            limit=8,
-            candidate_limit=retrieval_limit,
-            notebook_id=request.notebook_id
-        )
-    except RetrievalError as e:
-        raise HTTPException(status_code=500,detail=f"Retrieval failed: {e}")
-
     if request.session_id:
         history = conversation_store.get_recent(session_id=request.session_id,n=16)
     else:
         history = None
 
-    web_chunks = []
-    if request.web_search or not retrieved_chunks:
-        try:
-            web_chunks = await gather_web_sources(
-                query=request.query,
-                context_chunks=retrieved_chunks,
-                notebook_id=request.notebook_id,
-                force_web=request.web_search,
-            )
-        except Exception as error:
-            print(f"MCP web tools unavailable: {error}")
-            traceback.print_exception(type(error), error, error.__traceback__)
-            if request.web_search:
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Web Search mode requires MCP, but MCP is unavailable: {error}",
-                ) from error
-    all_chunks = retrieved_chunks + web_chunks
-
-    try:
-        generated_answer = await asyncio.to_thread(generate_answer,chat_request=request,retrieved_chunks=all_chunks,history=history)
-    except ChatError as e:
-        raise HTTPException(status_code=500,detail=f"Chat failed: {e}")
+    if request.mode == "l2":
+        generated_answer = await l2_orchestrator(request, weaviate_service, history=history)
+    else:
+        generated_answer = await answer_l1(request, weaviate_service, history=history)
 
     if request.session_id:
         conversation_store.get_or_create(session_id=request.session_id,notebook_id=request.notebook_id)
@@ -74,4 +33,43 @@ async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends
         conversation_store.add_turn(session_id=request.session_id,user_msg=request.query,assistant_msg=generated_answer.answer)
 
     return generated_answer
+
+
+@router.post("/chat/l2")
+async def chat_l2(
+    request: ChatRequest,
+    weaviate_service: WeaviateService = Depends(get_weaviate_service),
+) -> StreamingResponse:
+    history = conversation_store.get_recent(request.session_id, 16) if request.session_id else None
+
+    async def events():
+        queue = asyncio.Queue()
+
+        async def run():
+            try:
+                response = await l2_orchestrator(
+                    request, weaviate_service, history=history, on_progress=queue.put
+                )
+                if request.session_id:
+                    conversation_store.get_or_create(request.session_id, request.notebook_id)
+                    conversation_store.add_turn(request.session_id, request.query, response.answer)
+                await queue.put({"type": "done", **response.model_dump()})
+            except Exception as error:
+                await queue.put({"type": "error", "message": str(getattr(error, "detail", error))})
+
+        task = asyncio.create_task(run())
+        try:
+            while True:
+                event = await queue.get()
+                yield json.dumps(event) + "\n"
+                if event["type"] in {"done", "error"}:
+                    break
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    return StreamingResponse(
+        events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"}
+    )
 

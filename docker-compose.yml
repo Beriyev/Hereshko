@@ -25,8 +25,9 @@ services:
 
   reranker-transformers:
     image: cr.weaviate.io/semitechnologies/reranker-transformers:cross-encoder-ms-marco-MiniLM-L-6-v2
+    gpus: all
     environment:
-      ENABLE_CUDA: '0'
+      ENABLE_CUDA: '1'
 
 volumes:
   weaviate_data:
