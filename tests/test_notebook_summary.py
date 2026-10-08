@@ -49,7 +49,9 @@ class NotebookSummaryTests(unittest.TestCase):
         self.assertIsNone(database.notebook_summaries.get("nb-1"))
         self.save_summary()
         self.assertEqual(database.notebook_summaries["nb-1"], "Saved overview")
-        self.assertNotIn("summary", database.get_notebook("nb-1"))
+        notebook = database.get_notebook("nb-1")
+        assert notebook is not None
+        self.assertNotIn("summary", notebook)
 
     def test_database_does_not_need_summary_column(self):
         database.init_db()
@@ -91,7 +93,7 @@ class NotebookSummaryTests(unittest.TestCase):
 class SummaryRouteTests(unittest.IsolatedAsyncioTestCase):
     async def test_generated_summary_is_saved(self):
         from app.api import routes_notebooks
-        from app.schemas.notebook import GeneratedOverview
+        from app.core.notebook import GeneratedOverview
 
         notebook = {"source_count": 1, "updated_at": "2026-10-07T00:00:00+00:00"}
         overview = GeneratedOverview(title="Title", summary="Generated overview")

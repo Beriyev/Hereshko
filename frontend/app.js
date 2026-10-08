@@ -1,4 +1,4 @@
-const notebookId = "nb-1";
+const notebookId = new URLSearchParams(window.location.search).get("notebook_id");
 const apiBaseUrl = window.HERESHKO_API_URL || "http://localhost:8000";
 const sessionId = window.crypto?.randomUUID?.() || `session-${Date.now()}`;
 
@@ -560,7 +560,7 @@ async function submitPrompt(prompt) {
       web_search: webSearchMode,
       mode: chatMode,
     };
-    const payload = research ? await requestL2(body, research) : await apiRequest("/chat", {
+    const payload = research ? await requestL2(body, research) : await apiRequest("/chat/l1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -686,8 +686,11 @@ uploadZone.addEventListener("drop", (event) => {
   if (event.dataTransfer.files.length) uploadFiles(event.dataTransfer.files);
 });
 
-document.getElementById("addYoutube").addEventListener("click", async () => {
+document.getElementById("addYoutube").addEventListener("click", async (event) => {
   const input = document.getElementById("youtubeInput");
+  const button = event.currentTarget;
+  const box = document.getElementById("youtubeBox");
+  if (button.disabled) return;
   if (!input.value.trim()) {
     showToast("Paste a YouTube URL first");
     input.focus();
@@ -697,6 +700,11 @@ document.getElementById("addYoutube").addEventListener("click", async () => {
   const formData = new FormData();
   formData.append("url", input.value.trim());
   formData.append("notebook_id", notebookId);
+  box.classList.add("loading");
+  box.setAttribute("aria-busy", "true");
+  button.classList.add("loading");
+  button.disabled = true;
+  input.disabled = true;
   try {
     await apiRequest("/ingest/youtube", { method: "POST", body: formData });
     const card = document.createElement("article");
@@ -712,11 +720,18 @@ document.getElementById("addYoutube").addEventListener("click", async () => {
     showToast("YouTube source added");
   } catch (error) {
     showToast(`YouTube ingestion failed: ${error.message}`);
+  } finally {
+    box.classList.remove("loading");
+    box.setAttribute("aria-busy", "false");
+    button.classList.remove("loading");
+    button.disabled = false;
+    input.disabled = false;
   }
 });
 
 async function ingestWebsite(endpoint, triggerButton) {
   const input = document.getElementById("websiteInput");
+  if (input.disabled) return;
   const box = document.getElementById("websiteBox");
   const scrapeButton = document.getElementById("scrapeWebsite");
   const crawlButton = document.getElementById("crawlWebsite");
@@ -732,6 +747,7 @@ async function ingestWebsite(endpoint, triggerButton) {
   formData.append("url", url);
   formData.append("notebook_id", notebookId);
   box.classList.add("loading");
+  box.setAttribute("aria-busy", "true");
   input.disabled = true;
   scrapeButton.disabled = true;
   crawlButton.disabled = true;
@@ -750,6 +766,7 @@ async function ingestWebsite(endpoint, triggerButton) {
     showToast(`Website ingestion failed: ${error.message}`);
   } finally {
     box.classList.remove("loading");
+    box.setAttribute("aria-busy", "false");
     input.disabled = false;
     scrapeButton.disabled = false;
     crawlButton.disabled = false;
@@ -865,6 +882,10 @@ document.getElementById("askFromMap").addEventListener("click", () => {
 });
 
 renderMindMap(mindMapData);
-loadNotebook().catch((error) => {
-  showToast(`Could not load notebook: ${error.message}`);
-});
+if (notebookId) {
+  loadNotebook().catch((error) => {
+    showToast(`Could not load notebook: ${error.message}`);
+  });
+} else {
+  window.location.replace("notebooks.html");
+}

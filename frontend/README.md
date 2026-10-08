@@ -16,8 +16,9 @@ Then open `http://localhost:4173`.
 
 - File uploads and drag-and-drop source cards backed by `/ingest/upload`
 - YouTube source ingestion backed by `/ingest/youtube`
+- Notebook selection with search, sorting, animated cards, create, and rename
 - Auto-resizing chat composer
-- Letter-by-letter rendering of responses from `/chat`
+- L1 chat and streaming L2 questions/answers from `/chat/l1` and `/chat/l2`
 - Citation cards returned by the chat API
 - Animated summary refresh
 - Recursive hardcoded mind map with selectable nodes
@@ -26,8 +27,13 @@ Then open `http://localhost:4173`.
 
 ## Backend connection
 
-The client expects the API at `http://localhost:8000` and uses notebook ID `nb-1`.
-Override the API URL before loading `app.js` if needed:
+The client expects the API at `http://localhost:8000`. Opening the root redirects
+to `notebooks.html`, which lists notebooks from `GET /notebooks`. Creating uses
+`POST /notebooks`; renaming uses `PATCH /notebooks/{notebook_id}`. Selecting a card
+opens `index.html?notebook_id=...` with that notebook's sources and chat.
+The workspace's top-left Hereshko link returns to the selection page.
+
+Override the API URL before loading `app.js` or `notebooks.js` on each page if needed:
 
 ```html
 <script>window.HERESHKO_API_URL = "http://localhost:8000";</script>

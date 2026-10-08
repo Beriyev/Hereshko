@@ -10,7 +10,7 @@ def get_token_count(text: str):
     tokens = tokenizer.encode(text,add_special_tokens=False)
     return len(tokens)
 
-def chunker(document: Document, chunk_size: int = 612, chunk_overlap: int = 128) -> list[Chunk]:
+def chunker(document: Document, chunk_size: int = 384, chunk_overlap: int = 48) -> list[Chunk]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,

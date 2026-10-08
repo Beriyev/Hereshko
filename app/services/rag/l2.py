@@ -78,14 +78,14 @@ async def answer_l1_small(
         raise HTTPException(status_code=500, detail=f"Embedding failed: {error}") from error
 
     notebook = get_notebook(request.notebook_id)
-    retrieval_limit = 12
+    retrieval_limit = 20
 
     try:
         retrieved_chunks = await asyncio.to_thread(
             weaviate_service.retrieve_chunks,
             query=request.query,
             embedding=embeddings,
-            limit=6,
+            limit=10,
             candidate_limit=retrieval_limit,
             notebook_id=request.notebook_id,
         )
@@ -149,6 +149,7 @@ async def l2_planner(
         client.chat.completions.create,
         model=settings.groq_llm_model,
         messages=messages_list,
+        max_tokens=300,
         response_format={"type": "json_object"}
     )
 
@@ -221,6 +222,7 @@ async def l2_orchestrator(
                 "content": f"Original question: {request.query}\n\nQuestion-answer pairs:\n{context}",
             },
         ],
+        max_tokens=950,
     )
     answer = completion.choices[0].message.content
     if not answer:

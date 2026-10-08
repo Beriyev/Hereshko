@@ -440,7 +440,7 @@ svg {
   background: rgba(255, 255, 255, 0.018);
 }
 
-.website-box::before {
+.youtube-box::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -458,7 +458,7 @@ svg {
   pointer-events: none;
 }
 
-.website-box.loading::before {
+.youtube-box.loading::before {
   opacity: 1;
   animation: websiteBorder 1.15s linear infinite;
 }
@@ -2245,11 +2245,6 @@ svg {
 }
 
 /* Compact loading indicators for ingestion and chat. */
-.website-box.loading::before {
-  opacity: 0;
-  animation: none;
-}
-
 .url-input-wrap button svg {
   width: 15px;
   height: 15px;
@@ -2277,8 +2272,8 @@ svg {
 .loading-dots i:nth-child(3),
 .chat-loading-dots i:nth-child(3) { animation-delay: 280ms; }
 
-.website-box.loading .url-input-wrap button svg { display: none; }
-.website-box.loading .url-input-wrap button .loading-dots { display: flex; }
+.url-input-wrap button.loading svg { display: none; }
+.url-input-wrap button.loading .loading-dots { display: flex; }
 
 .typing-bubble {
   min-width: 56px;

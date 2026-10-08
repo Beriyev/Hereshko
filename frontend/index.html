@@ -17,7 +17,7 @@
 
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="Hereshko home">
+        <a class="brand" href="notebooks.html" aria-label="Hereshko notebooks">
           <span class="brand-name">Hereshko</span>
         </a>
 
@@ -59,7 +59,7 @@
             <span class="browse-label">Browse files</span>
           </label>
 
-          <div class="youtube-box">
+          <div class="youtube-box" id="youtubeBox">
             <div class="youtube-label">
               <span class="play-dot">
                 <svg viewBox="0 0 24 24"><path d="m10 8 6 4-6 4V8Z" /></svg>
@@ -68,8 +68,9 @@
             </div>
             <div class="url-input-wrap">
               <input id="youtubeInput" type="url" placeholder="Paste a video URL" />
-              <button id="addYoutube" aria-label="Add YouTube source">
+              <button id="addYoutube" type="button" aria-label="Add YouTube source">
                 <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                <span class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
               </button>
             </div>
           </div>
@@ -165,8 +166,8 @@
                   <button data-question="Give me a beginner-friendly explanation of attention">
                     <span>Understand</span>Explain attention simply
                   </button>
-                  <button data-question="Compare recurrent networks and transformers">
-                    <span>Compare</span>RNNs vs transformers
+                  <button data-question="Compare the main approaches discussed in my sources, including their strengths and limitations.">
+                    <span>Compare</span>Key approaches and trade-offs
                   </button>
                   <button data-question="Create a five-question revision quiz">
                     <span>Practice</span>Make a quick quiz

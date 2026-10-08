@@ -25,14 +25,14 @@ async def answer_l1(
 
     notebook = get_notebook(request.notebook_id)
     source_count = notebook["source_count"] if notebook else 0
-    retrieval_limit = 24 if source_count > 5 else 15
+    retrieval_limit = 24 if source_count > 5 else 20
 
     try:
         retrieved_chunks = await asyncio.to_thread(
             weaviate_service.retrieve_chunks,
             query=request.query,
             embedding=embeddings,
-            limit=8,
+            limit=10,
             candidate_limit=retrieval_limit,
             notebook_id=request.notebook_id,
         )

@@ -39,7 +39,7 @@ class L1Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result, self.response)
         self.embed.assert_called_once_with("Question")
         self.service.retrieve_chunks.assert_called_once_with(
-            query="Question", embedding=[0.1], limit=8, candidate_limit=15, notebook_id="notebook"
+            query="Question", embedding=[0.1], limit=10, candidate_limit=20, notebook_id="notebook"
         )
         self.web.assert_not_awaited()
         self.generate.assert_called_once_with(
@@ -95,15 +95,15 @@ class L1Tests(unittest.IsolatedAsyncioTestCase):
         store = ConversationStore()
         store.get_or_create("session", "notebook")
         store.add_turn("session", "Earlier", "Earlier answer")
-        history = store.get_recent("session", 16)
+        history = store.get_recent("session", 8)
         with patch.object(routes_chat, "conversation_store", store), patch.object(
             routes_chat, "answer_l1", new_callable=AsyncMock, return_value=self.response
         ) as answer:
-            result = await routes_chat.chat(self.request, self.service)
+            result = await routes_chat.chat_l1(self.request, self.service)
         self.assertIs(result, self.response)
-        answer.assert_awaited_once_with(self.request, self.service, history=history)
+        answer.assert_awaited_once_with(request=self.request, weaviate_service=self.service, history=history)
         self.assertEqual(
-            [message.content for message in store.get_recent("session", 16)],
+            [message.content for message in store.get_recent("session", 8)],
             ["Earlier", "Earlier answer", "Question", "Answer"],
         )
 
@@ -114,7 +114,7 @@ class L1Tests(unittest.IsolatedAsyncioTestCase):
             side_effect=HTTPException(status_code=500, detail="failed"),
         ):
             with self.assertRaises(HTTPException):
-                await routes_chat.chat(self.request, self.service)
+                await routes_chat.chat_l1(self.request, self.service)
         self.assertEqual(store.conversations, {})
 
 

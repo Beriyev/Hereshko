@@ -18,6 +18,9 @@ class L2CitationStartTests(unittest.IsolatedAsyncioTestCase):
         ), patch.object(l2, "generate_answer", return_value=response) as generate:
             result = await l2.answer_l1_small(request, service, citation_start=7)
         self.assertIs(result, response)
+        service.retrieve_chunks.assert_called_once_with(
+            query="Question", embedding=[0.1], limit=10, candidate_limit=20, notebook_id="test"
+        )
         self.assertEqual(generate.call_args.kwargs["citation_start"], 7)
         with self.assertRaises(TypeError):
             await l2.answer_l1_small(request, service)

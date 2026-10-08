@@ -89,7 +89,7 @@ async def gather_web_sources(
                 model=settings.groq_llm_model,
                 tools=tool_specs,
                 tool_choice="required" if force_web or (not context_chunks and not by_url) else "auto",
-                max_tokens=1024,
+                max_tokens=500,
             )
 
             message = completion.choices[0].message

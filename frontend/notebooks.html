@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Your Hereshko notebooks. A space for every question." />
+    <title>Your notebooks — Hereshko</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="notebooks.css?v=2" />
+    <script defer src="notebooks.js?v=2"></script>
+  </head>
+  <body class="notebook-library">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <header class="topbar library-topbar">
+      <a class="brand" href="notebooks.html" aria-label="Hereshko notebooks"><span class="brand-name">Hereshko</span></a>
+      <span class="status-pill"><i></i> Local workspace</span>
+    </header>
+    <main class="library-shell">
+      <section class="library-intro">
+        <div>
+          <span class="eyebrow" data-stream>beriyev's noteweaver</span>
+          <h1 data-stream><span>Hail the</span> sources.</h1>
+          <p data-stream>Bring your sources together. Pick up a thread, or start a new one.</p>
+        </div>
+        <button class="library-action" id="newNotebook" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          New notebook
+        </button>
+      </section>
+      <section class="library-section" aria-labelledby="libraryHeading">
+        <div class="library-toolbar">
+          <div class="library-heading"><h2 id="libraryHeading">Your notebooks</h2><span id="notebookCount">0</span></div>
+          <div class="library-controls">
+            <label class="library-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+              <input id="notebookSearch" type="search" placeholder="Find a notebook" aria-label="Find a notebook" />
+            </label>
+            <select id="notebookSort" aria-label="Sort notebooks">
+              <option value="recent">Recently updated</option>
+              <option value="name">Name A–Z</option>
+            </select>
+            <button class="library-refresh" id="refreshNotebooks" type="button" aria-label="Refresh notebooks" title="Refresh notebooks">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1" /></svg>
+            </button>
+          </div>
+        </div>
+        <p class="library-status" id="libraryStatus" role="status" aria-live="polite">Loading your notebooks…</p>
+        <div class="notebook-grid" id="notebookGrid" aria-busy="true"></div>
+        <div class="library-empty" id="libraryEmpty" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12a2 2 0 0 1 2 2v16H7a2 2 0 0 1-2-2V3ZM5 17h14M9 7h6M9 10h4" /></svg>
+          <h3 id="emptyTitle">Your first notebook starts here.</h3>
+          <p id="emptyText">Create a notebook, add your sources, and make room for discovery.</p>
+          <button class="library-action" id="emptyCreate" type="button">Create a notebook</button>
+        </div>
+      </section>
+    </main>
+    <dialog class="notebook-dialog" id="notebookDialog" aria-labelledby="dialogTitle">
+      <form id="notebookForm">
+        <span class="eyebrow">Make it yours</span>
+        <h2 id="dialogTitle">New notebook</h2>
+        <p id="dialogDescription">Give this collection a name. You can change it later.</p>
+        <label for="newNotebookTitle">Notebook name</label>
+        <input id="newNotebookTitle" name="title" type="text" maxlength="120" required placeholder="e.g. Ideas worth exploring" autocomplete="off" />
+        <p class="dialog-error" id="dialogError" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button class="library-cancel" id="cancelNotebook" type="button">Cancel</button>
+          <button class="library-action" id="saveNotebook" type="submit">Create notebook</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timezone
 
 class ConversationStore:
-    MAX_MESSAGES = 16
+    MAX_MESSAGES = 8
 
     def __init__(self):
         self.conversations: dict[str, Conversation] = {}

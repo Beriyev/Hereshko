@@ -252,3 +252,31 @@ def delete_all_sources(notebook_id: str) -> int:
 
     notebook_summaries.pop(notebook_id, None)
     return cursor.rowcount
+
+def save_notebook(notebook_id: str, title: str, created_at: str, updated_at: str) -> None:
+    with get_connection() as connection:
+        connection.execute(
+            """
+                INSERT INTO notebooks(notebook_id, title, created_at, updated_at)
+                VALUES
+                (?,?,?,?)
+            """,
+            (notebook_id,title,created_at,updated_at)
+        )
+
+def get_notebooks() -> list[dict]:
+    with get_connection() as connection:
+        notebooks = connection.execute(
+            """
+                select n.notebook_id, n.title, n.created_at, n.updated_at, count(s.notebook_id) as source_count
+                from notebooks n
+                left join sources s on s.notebook_id = n.notebook_id
+                group by n.notebook_id
+                order by n.updated_at desc
+            """
+        ).fetchall()
+
+    notebook_list = []
+    for notebook in notebooks:
+        notebook_list.append(dict(notebook))
+    return notebook_list

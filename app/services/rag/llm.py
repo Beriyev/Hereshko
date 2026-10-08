@@ -7,7 +7,7 @@ from groq.types.chat import ChatCompletionMessageParam
 from app.core.chat import ChatMessage, ChatRole
 import re
 from typing import cast
-from app.schemas.notebook import GeneratedOverview
+from app.core.notebook import GeneratedOverview
 
 client = groq_client
 
@@ -50,7 +50,8 @@ def generate_answer(chat_request: ChatRequest, retrieved_chunks: list[Chunk], hi
 
     chat_completion = client.chat.completions.create(
         model = settings.groq_llm_model,
-        messages=messages_list
+        messages=messages_list,
+        max_tokens=800,
     )
 
     answer_content = chat_completion.choices[0].message.content

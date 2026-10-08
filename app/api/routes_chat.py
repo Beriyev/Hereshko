@@ -13,63 +13,75 @@ router = APIRouter()
 
 conversation_store = ConversationStore()
 
-@router.post("/chat",response_model=ChatResponse)
-async def chat(request: ChatRequest, weaviate_service: WeaviateService = Depends(get_weaviate_service)) -> ChatResponse:
-
+@router.post("/chat/l1",response_model=ChatResponse)
+async def chat_l1(
+    request: ChatRequest,
+    weaviate_service: WeaviateService = Depends(get_weaviate_service)
+):
     if request.session_id:
-        history = conversation_store.get_recent(session_id=request.session_id,n=16)
+        history = conversation_store.get_recent(session_id=request.session_id,n=8)
     else:
         history = None
 
-    if request.mode == "l2":
-        generated_answer = await l2_orchestrator(request, weaviate_service, history=history)
-    else:
-        generated_answer = await answer_l1(request, weaviate_service, history=history)
+    response = await answer_l1(request=request,weaviate_service=weaviate_service,history=history)
 
     if request.session_id:
         conversation_store.get_or_create(session_id=request.session_id,notebook_id=request.notebook_id)
+        conversation_store.add_turn(session_id=request.session_id,user_msg=request.query,assistant_msg=response.answer)
 
-    if request.session_id:
-        conversation_store.add_turn(session_id=request.session_id,user_msg=request.query,assistant_msg=generated_answer.answer)
+    return response
 
-    return generated_answer
-
-
-@router.post("/chat/l2")
+@router.post("/chat/l2", response_class=StreamingResponse)
 async def chat_l2(
     request: ChatRequest,
-    weaviate_service: WeaviateService = Depends(get_weaviate_service),
-) -> StreamingResponse:
-    history = conversation_store.get_recent(request.session_id, 16) if request.session_id else None
+    weaviate_service: WeaviateService = Depends(get_weaviate_service)
+):
+    if request.session_id:
+        history = conversation_store.get_recent(session_id=request.session_id,n=8)
+    else:
+        history = None
 
-    async def events():
+    async def stream():
         queue = asyncio.Queue()
 
-        async def run():
+        async def run_l2():
             try:
                 response = await l2_orchestrator(
-                    request, weaviate_service, history=history, on_progress=queue.put
+                    request=request,
+                    weaviate_service=weaviate_service,
+                    history=history,
+                    on_progress=queue.put
                 )
                 if request.session_id:
-                    conversation_store.get_or_create(request.session_id, request.notebook_id)
-                    conversation_store.add_turn(request.session_id, request.query, response.answer)
-                await queue.put({"type": "done", **response.model_dump()})
-            except Exception as error:
-                await queue.put({"type": "error", "message": str(getattr(error, "detail", error))})
-
-        task = asyncio.create_task(run())
+                    conversation_store.get_or_create(session_id=request.session_id,notebook_id=request.notebook_id)
+                    conversation_store.add_turn(session_id=request.session_id,user_msg=request.query,assistant_msg=response.answer)
+                await queue.put({
+                    "type" : "done",
+                    **response.model_dump()
+                })
+            except Exception as e:
+                await queue.put({
+                    "type" : "error",
+                    "message" : str(getattr(e,"detail",e))
+                })
+        task = asyncio.create_task(run_l2())
         try:
             while True:
                 event = await queue.get()
                 yield json.dumps(event) + "\n"
-                if event["type"] in {"done", "error"}:
+
+                if event["type"] in {"done","error"}:
                     break
         finally:
             if not task.done():
                 task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            await asyncio.gather(task,return_exceptions=True)
 
     return StreamingResponse(
-        events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"}
+        stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache"}
     )
+    
 
+    

@@ -3,17 +3,22 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.exceptions import ChatError, IngestionError
-from app.schemas.notebook import (
+from app.core.notebook import (
     NotebookTitleUpdate,
     NotebookResponse,
     SourceListResponse,
     SummaryResponse,
+    NotebookListResponse,
+    NotebookCreateRequest
 )
 from app.services.rag.llm import generate_preview_summary
-from app.storage.database import delete_all_sources, delete_source, get_notebook, list_sources, update_notebook_title, notebook_summaries
+from app.storage.database import delete_all_sources, delete_source, get_notebook, list_sources, update_notebook_title, notebook_summaries, save_notebook, get_notebooks
 from app.clients.weaviate_client import get_weaviate_service
 from app.services.rag.weaviate_service import WeaviateService
-from app.schemas.notebook import SourceResponse
+from app.core.notebook import SourceResponse
+from uuid import uuid4
+
+from datetime import datetime, timezone
 
 router = APIRouter(
     prefix="/notebooks",
@@ -194,3 +199,46 @@ async def generate_notebook_summary(notebook_id: str) -> SummaryResponse:
         source_count=notebook["source_count"],
         updated_at=notebook["updated_at"],
     )
+
+@router.post("",response_model=NotebookResponse,status_code=201)
+def create_notebook(request: NotebookCreateRequest) -> NotebookResponse:
+    notebook_id = str(uuid4())
+    title = request.title.strip()
+
+    if not title:
+        raise HTTPException(status_code=400, detail="Notebook name cannot be empty.")
+    if len(title) > 120:
+        raise HTTPException(status_code=400, detail="Notebook name must be 120 characters or fewer.")
+    
+    now = datetime.now(timezone.utc)
+
+    save_notebook(
+        notebook_id=notebook_id,
+        title=title,
+        created_at=now.isoformat(),
+        updated_at=now.isoformat()
+    )
+    return NotebookResponse(
+        notebook_id=notebook_id,
+        title=title,
+        created_at=now,
+        updated_at=now,
+        source_count=0
+    )
+
+@router.get("",response_model=NotebookListResponse,status_code=200)
+def list_notebooks() -> NotebookListResponse:
+    notebooks_list = get_notebooks()
+    notebook_response_list = []
+    for notebook in notebooks_list:
+        notebook_response_list.append(
+            NotebookResponse(
+                notebook_id=notebook["notebook_id"],
+                title=notebook["title"],
+                created_at=notebook["created_at"],
+                updated_at=notebook["updated_at"],
+                source_count=notebook["source_count"]
+            )
+        )
+    response = NotebookListResponse(notebooks=notebook_response_list)
+    return response
