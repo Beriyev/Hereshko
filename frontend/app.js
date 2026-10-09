@@ -122,23 +122,28 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function streamText(target, text) {
+async function streamText(target, text, formatted = false) {
   target.replaceChildren();
   target.classList.add("stream-cursor", "streaming-reveal");
 
-  const blocks = text.split(/\n{2,}/).filter((block) => block.trim());
-  const revealBlocks = blocks.length ? blocks : [text];
+  if (formatted) {
+    renderFormattedText(target, text);
+    [...target.children].forEach((element) => element.classList.add("stream-block"));
+  } else {
+    const blocks = text.split(/\n{2,}/).filter((block) => block.trim());
+    const revealBlocks = blocks.length ? blocks : [text];
 
-  revealBlocks.forEach((block, index) => {
-    const element = document.createElement("span");
-    element.className = "stream-block";
-    element.textContent = block;
-    target.appendChild(element);
+    revealBlocks.forEach((block, index) => {
+      const element = document.createElement("span");
+      element.className = "stream-block";
+      element.textContent = block;
+      target.appendChild(element);
 
-    if (index < revealBlocks.length - 1) {
-      target.appendChild(document.createTextNode("\n\n"));
-    }
-  });
+      if (index < revealBlocks.length - 1) {
+        target.appendChild(document.createTextNode("\n\n"));
+      }
+    });
+  }
 
   const duration = Math.min(3800, Math.max(1400, text.length * 6.5));
   target.style.setProperty("--stream-duration", `${duration}ms`);
@@ -148,6 +153,7 @@ async function streamText(target, text) {
 
   target.classList.remove("stream-cursor", "streaming-reveal");
   target.style.removeProperty("--stream-duration");
+  [...target.children].forEach((element) => element.classList.remove("stream-block"));
 }
 
 function renderFormattedText(target, text) {
@@ -169,6 +175,7 @@ function renderFormattedText(target, text) {
 
   if (usedMarkdownRenderer) {
     decorateCitationMarkers(target);
+    decorateTables(target);
   }
 
   if (window.renderMathInElement) {
@@ -182,6 +189,18 @@ function renderFormattedText(target, text) {
       throwOnError: false,
     });
   }
+}
+
+function decorateTables(root) {
+  root.querySelectorAll("table").forEach((table) => {
+    const container = document.createElement("div");
+    container.className = "table-scroll";
+    container.tabIndex = 0;
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-label", table.caption?.textContent.trim() || "Table; scroll horizontally to view all columns");
+    table.parentNode.insertBefore(container, table);
+    container.appendChild(table);
+  });
 }
 
 function renderBasicFormatting(target, text) {
@@ -411,7 +430,7 @@ async function refreshNotebookOverview(showSuccess = true) {
     elements.summaryText.textContent = "";
     await Promise.all([
       streamText(elements.generatedTitle, payload.title),
-      streamText(elements.summaryText, payload.summary),
+      streamText(elements.summaryText, payload.summary, true),
       streamText(elements.summaryUpdated, `Updated ${new Date(payload.updated_at).toLocaleString()}`),
     ]);
     renderFormattedText(elements.summaryText, payload.summary);
@@ -476,7 +495,7 @@ function createL2Panel(row) {
         question.item.classList.remove("is-searching");
         question.status.textContent = "Receiving answer…";
         if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-          await streamText(question.answer, event.answer);
+          await streamText(question.answer, event.answer, true);
         }
         renderFormattedText(question.answer, event.answer);
         addCitationCards(question.item, event.sources);
@@ -568,7 +587,7 @@ async function submitPrompt(prompt) {
     const answer = payload.answer || "The notebook returned an empty answer.";
     bubble.classList.remove("typing-bubble");
     bubble.textContent = "";
-    await streamText(bubble, answer);
+    await streamText(bubble, answer, true);
     renderFormattedText(bubble, answer);
     addCitationCards(row, payload.sources);
   } catch (error) {

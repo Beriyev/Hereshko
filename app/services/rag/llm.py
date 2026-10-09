@@ -19,6 +19,7 @@ Rules:
 3. If the sources do not contain enough information to answer the question, say so plainly instead of guessing or using outside knowledge.
 4. Do not invent source numbers. Only cite numbers that actually appear in the sources below.
 5. Write in clear, direct prose. Do not restate the sources verbatim — synthesize them into an answer.
+6. When a table helps answer the question or the user requests one, use a Markdown table with a header and separator row. Never use ASCII box drawings, aligned plain-text columns, or wrap a table in a code fence. Keep citations inside the relevant cells.
 
 Example of correct citation style:
 "The engine relies on a turbocharger for increased power [2], though this comes at the cost of higher fuel consumption under load [1][4]."
