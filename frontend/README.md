@@ -21,8 +21,9 @@ Then open `http://localhost:4173`.
 - L1 chat and streaming L2 questions/answers from `/chat/l1` and `/chat/l2`
 - Citation cards returned by the chat API
 - Animated summary refresh
-- Recursive hardcoded mind map with selectable nodes
+- GraphWeaver mind maps generated from a selected notebook source, with top-down branches, expand/collapse controls, zoom, and drag-to-pan
 - Mind-map prompts that can be sent back into the chat
+- Animated map reveals and branch movement; scrollwheel navigation, Ctrl/Command + wheel zoom, and dragging from the canvas or a node
 - Responsive desktop, tablet, and mobile layouts
 
 ## Backend connection
@@ -31,6 +32,10 @@ The client expects the API at `http://localhost:8000`. Opening the root redirect
 to `notebooks.html`, which lists notebooks from `GET /notebooks`. Creating uses
 `POST /notebooks`; renaming uses `PATCH /notebooks/{notebook_id}`. Selecting a card
 opens `index.html?notebook_id=...` with that notebook's sources and chat.
+GraphWeaver sends `POST /notebooks/{notebook_id}/mindmap` with a JSON `document_id`
+and displays the returned nodes. Generated maps are cached in the current browser
+session until the page reloads; Regenerate requests a fresh map. The selected
+source must have persisted extracted content on the backend.
 The workspace's top-left Hereshko link returns to the selection page.
 
 Override the API URL before loading `app.js` or `notebooks.js` on each page if needed:

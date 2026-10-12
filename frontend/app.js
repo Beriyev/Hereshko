@@ -2,12 +2,13 @@ const notebookId = new URLSearchParams(window.location.search).get("notebook_id"
 const apiBaseUrl = window.HERESHKO_API_URL || "http://localhost:8000";
 const sessionId = window.crypto?.randomUUID?.() || `session-${Date.now()}`;
 
-const mindMapData = {
-  label: "Your notebook",
-  description: "Mind map generation will use indexed notebook content when that feature is connected.",
-  sources: 0,
-  children: [],
-};
+const mindMapCache = new Map();
+let mindMapSources = [];
+let mindMapRoot = null;
+let mindMapBusy = false;
+let mapZoom = 1;
+let mapZoomFrame = null;
+let mapZoomTarget = 1;
 
 const elements = {
   form: document.getElementById("chatForm"),
@@ -308,6 +309,7 @@ function sourceMeta(source) {
 }
 
 function renderSources(sources) {
+  updateMindMapSources(sources);
   elements.sourceList.innerHTML = "";
 
   if (!sources.length) {
@@ -814,57 +816,327 @@ document.getElementById("refreshSummary").addEventListener("click", async (event
   }
 });
 
-function renderMindMap(root) {
-  elements.map.innerHTML = "";
-  const tree = document.createElement("ul");
-  tree.appendChild(renderNode(root));
-  elements.map.appendChild(tree);
+function updateMindMapSources(sources) {
+  const select = document.getElementById("mindMapSource");
+  const previous = select.value;
+  mindMapSources = sources;
+  select.replaceChildren();
+  sources.forEach((source) => {
+    const option = document.createElement("option");
+    option.value = source.document_id;
+    option.textContent = source.title;
+    select.appendChild(option);
+  });
+  if (sources.some((source) => source.document_id === previous)) select.value = previous;
+  if (!sources.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No sources yet";
+    select.appendChild(option);
+  }
+  for (const id of mindMapCache.keys()) {
+    if (!sources.some((source) => source.document_id === id)) mindMapCache.delete(id);
+  }
+  setMindMapBusy(mindMapBusy);
+  if (select.value !== previous || !sources.length) showSelectedMindMap();
 }
 
-function renderNode(node) {
+function resetMapConcept() {
+  elements.selectedConcept.textContent = "Choose a node";
+  elements.conceptDescription.textContent = "Select a concept to read its summary and ask a question.";
+  elements.prompt.value = "";
+  elements.conceptSources.classList.remove("active");
+  elements.conceptSources.querySelector("small").textContent = "No node selected";
+  elements.conceptSources.querySelectorAll("i").forEach((bar) => { bar.style.opacity = "0.18"; });
+}
+
+function showMapMessage(title, description, loading = false) {
+  stopMapZoom();
+  mindMapRoot = null;
+  resetMapConcept();
+  const state = document.createElement("div");
+  state.className = `map-empty-state${loading ? " loading" : ""}`;
+  if (loading) {
+    const dots = document.createElement("span");
+    dots.className = "chat-loading-dots";
+    dots.setAttribute("role", "status");
+    dots.setAttribute("aria-label", "Generating mind map");
+    for (let index = 0; index < 3; index++) dots.appendChild(document.createElement("i"));
+    state.appendChild(dots);
+  } else {
+    const icon = document.createElement("span");
+    icon.className = "map-state-icon";
+    icon.textContent = "✧";
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    const text = document.createElement("p");
+    text.textContent = description;
+    state.append(icon, heading, text);
+  }
+  elements.map.replaceChildren(state);
+  mapZoom = 1;
+  requestAnimationFrame(() => updateMapScale());
+}
+
+function mindMapTree(nodes) {
+  const byId = new Map(nodes.map((node) => [node.id, { ...node, children: [] }]));
+  const roots = [...byId.values()].filter((node) => node.parent_id === null);
+  if (roots.length !== 1 || byId.size !== nodes.length) throw new Error("The generated map has an invalid structure. Try regenerating it.");
+  for (const node of byId.values()) {
+    if (node.parent_id === null) continue;
+    const parent = byId.get(node.parent_id);
+    if (!parent) throw new Error("The generated map has a missing branch. Try regenerating it.");
+    parent.children.push(node);
+  }
+  const visited = new Set();
+  function visit(node) {
+    if (visited.has(node.id)) throw new Error("The generated map has a circular branch. Try regenerating it.");
+    visited.add(node.id);
+    node.children.forEach(visit);
+  }
+  visit(roots[0]);
+  if (visited.size !== nodes.length) throw new Error("The generated map has disconnected branches. Try regenerating it.");
+  return roots[0];
+}
+
+function selectMapNode(node, button) {
+  elements.map.querySelectorAll(".map-node").forEach((item) => {
+    item.classList.remove("selected");
+    item.setAttribute("aria-pressed", "false");
+  });
+  button.classList.add("selected");
+  button.setAttribute("aria-pressed", "true");
+  elements.selectedConcept.textContent = node.title;
+  elements.conceptDescription.textContent = node.summary;
+  const source = mindMapSources.find((item) => item.document_id === document.getElementById("mindMapSource").value);
+  elements.prompt.value = `Explain "${node.title}" using ${source?.title || "my notebook sources"}. Give a simple explanation, important details, and examples.`;
+  elements.conceptSources.classList.add("active");
+  elements.conceptSources.querySelectorAll("i").forEach((bar, index) => { bar.style.opacity = index === 0 ? "1" : "0.18"; });
+  elements.conceptSources.querySelector("small").textContent = source?.title || "Selected notebook source";
+}
+
+function renderMindMap(root) {
+  stopMapZoom();
+  mindMapRoot = root;
+  resetMapConcept();
+  const tree = document.createElement("ul");
+  tree.appendChild(renderNode(root));
+  elements.map.replaceChildren(tree);
+  requestAnimationFrame(fitMindMap);
+}
+
+function renderNode(node, depth = 0, order = 0, branchHue = null) {
   const li = document.createElement("li");
+  li.className = depth === 0 ? "map-root" : depth === 1 ? "map-theme" : "map-subtopic";
+  const card = document.createElement("div");
+  card.className = `map-node-card${depth === 0 ? " map-root-card" : ""}`;
+  const shade = Math.min(218, 18 + depth * 28);
+  card.style.setProperty("--map-node-background", `rgb(${shade}, ${shade}, ${shade})`);
+  card.style.setProperty("--map-node-text", shade >= 125 ? "#111" : "#f2f2f2");
+  card.style.setProperty("--map-node-border", shade >= 125 ? "rgba(0, 0, 0, 0.2)" : "rgba(255, 255, 255, 0.2)");
+  card.style.setProperty("--map-highlight", shade >= 125 ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.65)");
+  if (branchHue !== null) {
+    const borderColor = `hsl(${branchHue} 72% ${Math.min(88, 62 + (depth - 1) * 7)}%)`;
+    card.dataset.branchHue = String(branchHue);
+    card.style.setProperty("--map-node-border", borderColor);
+    card.style.setProperty("--map-highlight", borderColor);
+  }
+  card.style.setProperty("--map-delay", `${Math.min(depth * 75 + order * 45, 360)}ms`);
   const button = document.createElement("button");
   button.className = "map-node";
-  button.textContent = node.label;
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    document.querySelectorAll(".map-node").forEach((item) => item.classList.remove("selected"));
-    button.classList.add("selected");
-
-    elements.selectedConcept.textContent = node.label;
-    elements.conceptDescription.textContent = node.description || "A concept discovered across your notebook sources.";
-    elements.prompt.value = `Explain "${node.label}" using my notebook sources. Give a simple explanation, important details, and examples.`;
-
-    elements.conceptSources.classList.remove("active");
-    void elements.conceptSources.offsetWidth;
-    elements.conceptSources.classList.add("active");
-    const activeSources = node.sources || 1;
-    elements.conceptSources.querySelectorAll("i").forEach((bar, index) => {
-      bar.style.opacity = index < activeSources ? "1" : "0.18";
-    });
-    elements.conceptSources.querySelector("small").textContent = `${activeSources} notebook source${activeSources === 1 ? "" : "s"} cover this concept`;
-  });
-
-  li.appendChild(button);
-  if (node.children?.length) {
+  const label = document.createElement("span");
+  label.className = "map-node-label";
+  label.textContent = node.title;
+  button.appendChild(label);
+  button.title = node.title;
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", () => selectMapNode(node, button));
+  card.appendChild(button);
+  li.appendChild(card);
+  if (node.children.length) {
     const children = document.createElement("ul");
-    node.children.forEach((child) => children.appendChild(renderNode(child)));
+    children.className = depth === 0 ? "map-themes" : "map-subtopics";
+    children.hidden = depth > 0;
+    const toggle = document.createElement("button");
+    toggle.className = "map-branch-toggle";
+    const updateToggle = () => {
+      toggle.textContent = children.hidden ? `+${node.children.length}` : "−";
+      toggle.setAttribute("aria-expanded", String(!children.hidden));
+      toggle.setAttribute("aria-label", `${children.hidden ? "Expand" : "Collapse"} ${node.title}`);
+    };
+    updateToggle();
+    toggle.addEventListener("click", () => {
+      stopMapZoom();
+      const before = new Map([...elements.map.querySelectorAll(".map-node-card")]
+        .filter((item) => item.offsetParent !== null)
+        .map((item) => [item, item.getBoundingClientRect()]));
+      children.hidden = !children.hidden;
+      updateToggle();
+      requestAnimationFrame(() => {
+        updateMapScale();
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        for (const [item, previous] of before) {
+          if (item.offsetParent === null) continue;
+          const current = item.getBoundingClientRect();
+          const x = (previous.left - current.left) / mapZoom;
+          const y = (previous.top - current.top) / mapZoom;
+          if (Math.abs(x) + Math.abs(y) > 1) {
+            item.animate([
+              { transform: `translate(${x}px, ${y}px)` },
+              { transform: "translate(0, 0)" },
+            ], { duration: 360, easing: "cubic-bezier(.2,.8,.2,1)" });
+          }
+        }
+      });
+    });
+    card.appendChild(toggle);
+    node.children.forEach((child, index) => children.appendChild(renderNode(
+      child, depth + 1, index, depth === 0 ? (210 + index * 137.508) % 360 : branchHue,
+    )));
     li.appendChild(children);
   }
   return li;
+}
+
+function updateMapConnectors() {
+  const positions = [...elements.map.querySelectorAll(".map-node-card")]
+    .filter((card) => card.offsetParent !== null)
+    .map((card) => {
+      const branch = card.parentElement.querySelector(":scope > ul.map-subtopics");
+      return {
+        node: card.parentElement,
+        middle: card.offsetHeight / 2,
+        branch,
+        parentCenter: branch && !branch.hidden ? card.offsetLeft + card.offsetWidth / 2 - branch.offsetLeft - 8 : null,
+      };
+    });
+  for (const position of positions) {
+    position.node.style.setProperty("--map-node-middle", `${position.middle}px`);
+    if (position.parentCenter !== null) position.branch.style.setProperty("--map-parent-center", `${position.parentCenter}px`);
+  }
+}
+
+function updateMapScale(zoom = mapZoom) {
+  updateMapConnectors();
+  mapZoom = Math.max(0.2, Math.min(2.5, zoom));
+  const viewport = document.getElementById("mapViewport");
+  const surface = document.getElementById("mapSurface");
+  const width = Math.max(elements.map.offsetWidth * mapZoom, viewport.clientWidth);
+  surface.style.width = `${width}px`;
+  surface.style.height = `${Math.max(elements.map.offsetHeight * mapZoom, viewport.clientHeight)}px`;
+  elements.map.style.transform = `scale(${mapZoom})`;
+  elements.map.style.left = `${Math.max(0, (width - elements.map.offsetWidth * mapZoom) / 2)}px`;
+  document.getElementById("mapScale").textContent = `${Math.round(mapZoom * 100)}%`;
+}
+
+function stopMapZoom() {
+  if (mapZoomFrame !== null) cancelAnimationFrame(mapZoomFrame);
+  mapZoomFrame = null;
+  mapZoomTarget = mapZoom;
+}
+
+function zoomMapAt(zoom, point) {
+  const viewport = document.getElementById("mapViewport");
+  const x = (viewport.scrollLeft + point.x - (parseFloat(elements.map.style.left) || 0)) / mapZoom;
+  const y = (viewport.scrollTop + point.y) / mapZoom;
+  updateMapScale(zoom);
+  viewport.scrollLeft = x * mapZoom + (parseFloat(elements.map.style.left) || 0) - point.x;
+  viewport.scrollTop = y * mapZoom - point.y;
+}
+
+function animateMapZoom(zoom, point) {
+  stopMapZoom();
+  mapZoomTarget = Math.max(0.2, Math.min(2.5, zoom));
+  const viewport = document.getElementById("mapViewport");
+  const anchor = point || { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    zoomMapAt(mapZoomTarget, anchor);
+    return;
+  }
+  const startZoom = mapZoom;
+  let startTime;
+  function frame(time) {
+    startTime ??= time;
+    const progress = Math.min(1, (time - startTime) / 180);
+    const eased = 1 - (1 - progress) ** 3;
+    zoomMapAt(startZoom + (mapZoomTarget - startZoom) * eased, anchor);
+    mapZoomFrame = progress < 1 ? requestAnimationFrame(frame) : null;
+  }
+  mapZoomFrame = requestAnimationFrame(frame);
+}
+
+function fitMindMap() {
+  stopMapZoom();
+  const viewport = document.getElementById("mapViewport");
+  if (!viewport.clientWidth) return;
+  updateMapScale(Math.min(1, (viewport.clientWidth - 32) / elements.map.offsetWidth,
+    (viewport.clientHeight - 24) / elements.map.offsetHeight));
+  viewport.scrollLeft = 0;
+  viewport.scrollTop = 0;
+}
+
+function setMindMapBusy(busy) {
+  mindMapBusy = busy;
+  const select = document.getElementById("mindMapSource");
+  select.disabled = busy || !mindMapSources.length;
+  document.getElementById("generateMap").disabled = busy || !mindMapSources.length;
+  document.getElementById("generateMap").textContent = busy ? "Generating…" : "Generate map";
+  document.getElementById("regenerateMap").disabled = busy || !mindMapSources.length;
+  elements.map.setAttribute("aria-busy", String(busy));
+}
+
+function showSelectedMindMap() {
+  const sourceId = document.getElementById("mindMapSource").value;
+  const cached = mindMapCache.get(sourceId);
+  document.getElementById("mapHint").textContent = "Expand with + · Drag to pan · Scroll to move · Ctrl/⌘ + wheel to zoom";
+  if (cached) renderMindMap(cached);
+  else showMapMessage(mindMapSources.length ? "Follow the ideas" : "Your map starts with a source",
+    mindMapSources.length ? "Choose a source above, then generate its mind map." : "Add a document, website, or video to this notebook first.");
+}
+
+async function generateSelectedMindMap() {
+  const sourceId = document.getElementById("mindMapSource").value;
+  if (mindMapBusy || !sourceId) return;
+  setMindMapBusy(true);
+  showMapMessage("Connecting the ideas", "Building a mind map from your selected source…", true);
+  document.getElementById("mapHint").textContent = "";
+  try {
+    const payload = await apiRequest(`/notebooks/${notebookId}/mindmap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: sourceId }),
+    });
+    const root = mindMapTree(payload.nodes);
+    if (!mindMapSources.some((source) => source.document_id === sourceId)) return;
+    mindMapCache.set(sourceId, root);
+    if (document.getElementById("mindMapSource").value === sourceId) {
+      renderMindMap(root);
+      document.getElementById("mapHint").textContent = `${payload.nodes.length} concepts · Expand with + · Drag to pan · Ctrl/⌘ + wheel to zoom`;
+    }
+  } catch (error) {
+    showMapMessage("Couldn't generate this map", `${error.message} Try Generate map again.`);
+    document.getElementById("mapHint").textContent = "Choose a source and try again.";
+    showToast(`Mind map failed: ${error.message}`);
+  } finally {
+    setMindMapBusy(false);
+  }
 }
 
 function openMindMap() {
   elements.modal.classList.add("open");
   elements.modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
-  renderMindMap(mindMapData);
+  if (!mindMapBusy) showSelectedMindMap();
+  requestAnimationFrame(fitMindMap);
+  document.getElementById("closeMindMap").focus();
 }
 
 function closeMindMap() {
+  stopMapZoom();
   elements.modal.classList.remove("open");
   elements.modal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  document.getElementById("graphweaverButton").focus();
 }
 
 document.getElementById("closeMindMap").addEventListener("click", closeMindMap);
@@ -876,18 +1148,79 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && elements.modal.classList.contains("open")) closeMindMap();
 });
 
-document.getElementById("generateMap").addEventListener("click", () => {
-  const topic = document.getElementById("mindMapTopic").value.trim() || "Your notebook";
-  const map = structuredClone(mindMapData);
-  map.label = topic;
-  map.description = `A generated overview of ${topic} based on the current notebook.`;
-  renderMindMap(map);
-  showToast(`Generated a map for ${topic}`);
+document.getElementById("graphweaverButton").addEventListener("click", openMindMap);
+document.getElementById("generateMap").addEventListener("click", generateSelectedMindMap);
+document.getElementById("regenerateMap").addEventListener("click", generateSelectedMindMap);
+document.getElementById("mindMapSource").addEventListener("change", showSelectedMindMap);
+document.getElementById("mapZoomOut").addEventListener("click", () => animateMapZoom((mapZoomFrame === null ? mapZoom : mapZoomTarget) - 0.1));
+document.getElementById("mapZoomIn").addEventListener("click", () => animateMapZoom((mapZoomFrame === null ? mapZoom : mapZoomTarget) + 0.1));
+document.getElementById("mapFit").addEventListener("click", fitMindMap);
+document.getElementById("mapCollapse").addEventListener("click", () => {
+  if (mindMapRoot) renderMindMap(mindMapRoot);
+});
+window.addEventListener("resize", () => {
+  if (elements.modal.classList.contains("open")) updateMapScale();
 });
 
-document.getElementById("regenerateMap").addEventListener("click", () => {
-  renderMindMap(mindMapData);
-  showToast("Mind map regenerated");
+const mapViewport = document.getElementById("mapViewport");
+let mapDrag = null;
+let suppressMapClick = false;
+mapViewport.addEventListener("wheel", (event) => {
+  if (!mindMapRoot) return;
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault();
+    const bounds = mapViewport.getBoundingClientRect();
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? mapViewport.clientHeight : 1;
+    const delta = Math.max(-120, Math.min(120, event.deltaY * unit));
+    animateMapZoom((mapZoomFrame === null ? mapZoom : mapZoomTarget) * Math.exp(-delta * 0.0025),
+      { x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+  } else if (event.shiftKey || (mapViewport.scrollHeight <= mapViewport.clientHeight && mapViewport.scrollWidth > mapViewport.clientWidth)) {
+    event.preventDefault();
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? mapViewport.clientWidth : 1;
+    mapViewport.scrollLeft += (event.deltaY || event.deltaX) * unit;
+  }
+}, { passive: false });
+mapViewport.addEventListener("click", (event) => {
+  if (!suppressMapClick) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+mapViewport.addEventListener("pointerdown", (event) => {
+  if (event.pointerType !== "mouse" || event.button !== 0 || event.target.closest(".map-branch-toggle")) return;
+  stopMapZoom();
+  suppressMapClick = false;
+  mapDrag = { x: event.clientX, y: event.clientY, left: mapViewport.scrollLeft, top: mapViewport.scrollTop, moved: false };
+});
+mapViewport.addEventListener("pointermove", (event) => {
+  if (!mapDrag) return;
+  if (!mapDrag.moved && Math.hypot(event.clientX - mapDrag.x, event.clientY - mapDrag.y) < 5) return;
+  if (!mapDrag.moved) {
+    mapDrag.moved = true;
+    suppressMapClick = true;
+    mapViewport.setPointerCapture(event.pointerId);
+    mapViewport.classList.add("dragging");
+  }
+  event.preventDefault();
+  mapViewport.scrollLeft = mapDrag.left - event.clientX + mapDrag.x;
+  mapViewport.scrollTop = mapDrag.top - event.clientY + mapDrag.y;
+});
+mapViewport.addEventListener("lostpointercapture", () => {
+  mapDrag = null;
+  mapViewport.classList.remove("dragging");
+});
+mapViewport.addEventListener("pointerup", (event) => {
+  if (mapViewport.hasPointerCapture(event.pointerId)) mapViewport.releasePointerCapture(event.pointerId);
+  mapDrag = null;
+  mapViewport.classList.remove("dragging");
+  setTimeout(() => { suppressMapClick = false; }, 0);
+});
+mapViewport.addEventListener("pointercancel", () => {
+  mapDrag = null;
+  suppressMapClick = false;
+  mapViewport.classList.remove("dragging");
+});
+mapViewport.addEventListener("pointerleave", () => {
+  if (mapDrag && !mapDrag.moved) mapDrag = null;
 });
 
 document.getElementById("askFromMap").addEventListener("click", () => {
@@ -900,7 +1233,8 @@ document.getElementById("askFromMap").addEventListener("click", () => {
   submitPrompt(prompt);
 });
 
-renderMindMap(mindMapData);
+showSelectedMindMap();
+setMindMapBusy(false);
 if (notebookId) {
   loadNotebook().catch((error) => {
     showToast(`Could not load notebook: ${error.message}`);

@@ -21,3 +21,4 @@ wheels/
 
 # Local runtime data
 data/*.db
+data/persist/

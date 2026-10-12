@@ -8,7 +8,7 @@
       content="Hereshko — a local-first study and research workspace."
     />
     <title>Hereshko — Study & Research</title>
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=16" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
   </head>
   <body>
@@ -215,12 +215,12 @@
               <span><strong>Questionweaver</strong><small>Upcoming</small></span>
               <em>soon</em>
             </button>
-            <button class="tool-card upcoming-tool" id="graphweaverButton" data-toast="Graphweaver is upcoming">
+            <button class="tool-card" id="graphweaverButton" aria-haspopup="dialog">
               <span class="tool-icon amber">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M11 7.3 7 15.7M13 7.3l4 8.4M8.5 18h7" /></svg>
               </span>
-              <span><strong>Graphweaver</strong><small>Upcoming</small></span>
-              <em>soon</em>
+              <span><strong>Graphweaver</strong><small>Explore your sources</small></span>
+              <em>map</em>
             </button>
             <button class="tool-card upcoming-tool" data-toast="Deep research is upcoming">
               <span class="tool-icon blue">
@@ -287,18 +287,28 @@
             <div class="map-toolbar">
               <div class="map-topic-input">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></svg>
-                <input id="mindMapTopic" placeholder="Notebook topic" />
+                <select id="mindMapSource" aria-label="Source for mind map"><option value="">Choose a source</option></select>
               </div>
               <button id="generateMap">Generate map</button>
             </div>
-            <div class="map-hint">Select any concept to turn it into a grounded question.</div>
-            <div id="map" class="mindmap-tree"></div>
+            <div class="map-hint" id="mapHint" role="status">Choose a source to explore its ideas.</div>
+            <div class="map-viewport" id="mapViewport" tabindex="0" aria-label="Mind map. Scroll or drag to move. Control or Command plus scrollwheel to zoom.">
+              <div class="map-surface" id="mapSurface"><div id="map" class="mindmap-tree"></div></div>
+            </div>
+            <div class="map-view-controls" aria-label="Map controls">
+              <button id="mapZoomOut" aria-label="Zoom out">−</button>
+              <span id="mapScale">100%</span>
+              <button id="mapZoomIn" aria-label="Zoom in">+</button>
+              <span class="map-control-divider"></span>
+              <button id="mapFit">Fit</button>
+              <button id="mapCollapse">Collapse</button>
+            </div>
           </div>
 
           <aside class="concept-panel">
             <span class="eyebrow">Selected concept</span>
             <h3 id="selectedConcept">Choose a node</h3>
-            <p id="conceptDescription">Its explanation prompt and source coverage will appear here.</p>
+            <p id="conceptDescription">Select a concept to read its summary and ask a question.</p>
             <label for="mindMapPrompt">Prompt</label>
             <textarea id="mindMapPrompt" placeholder="Click a node to create a prompt"></textarea>
             <button id="askFromMap" class="primary-button">
@@ -306,7 +316,7 @@
               <svg viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
             </button>
             <div class="concept-sources" id="conceptSources">
-              <span>Source coverage</span>
+              <span>Map source</span>
               <div><i></i><i></i><i></i><i></i></div>
               <small>No node selected</small>
             </div>
@@ -321,6 +331,6 @@
     <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
-    <script defer src="app.js?v=4"></script>
+    <script defer src="app.js?v=16"></script>
   </body>
 </html>

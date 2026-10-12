@@ -1,3 +1,4 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,8 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_whisper_model: str = "whisper-large-v3-turbo"
     groq_llm_model: str = "qwen/qwen3.8-27b"
+
+    gemini_api_key: SecretStr = SecretStr("")
 
     yt_player_client: str = ""
     yt_js_runtime: str = "deno"
@@ -30,5 +33,7 @@ class Settings(BaseSettings):
 
     mcp_server_url: str = "http://127.0.0.1:8765/mcp"
     web_tool_max_iterations: int = 2
+
+    gemini_model: str = "gemini-3.8-flash"
 
 settings = Settings()

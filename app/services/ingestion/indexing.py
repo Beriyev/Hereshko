@@ -4,9 +4,12 @@ from app.core.normalization import Document
 from app.services.rag.chunker import chunker
 from app.services.rag.embeddings import embed_texts
 from app.storage.database import save_source
+from app.storage.persistence import persist_document
 
 def index_document(document: Document) -> Document:
     try:
+        persist_document(document=document)
+
         chunks = chunker(document=document)
 
         if not chunks:
