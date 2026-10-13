@@ -925,7 +925,7 @@ function renderMindMap(root) {
   requestAnimationFrame(fitMindMap);
 }
 
-function renderNode(node, depth = 0, order = 0, branchHue = null) {
+function renderNode(node, depth = 0, order = 0) {
   const li = document.createElement("li");
   li.className = depth === 0 ? "map-root" : depth === 1 ? "map-theme" : "map-subtopic";
   const card = document.createElement("div");
@@ -935,12 +935,6 @@ function renderNode(node, depth = 0, order = 0, branchHue = null) {
   card.style.setProperty("--map-node-text", shade >= 125 ? "#111" : "#f2f2f2");
   card.style.setProperty("--map-node-border", shade >= 125 ? "rgba(0, 0, 0, 0.2)" : "rgba(255, 255, 255, 0.2)");
   card.style.setProperty("--map-highlight", shade >= 125 ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.65)");
-  if (branchHue !== null) {
-    const borderColor = `hsl(${branchHue} 72% ${Math.min(88, 62 + (depth - 1) * 7)}%)`;
-    card.dataset.branchHue = String(branchHue);
-    card.style.setProperty("--map-node-border", borderColor);
-    card.style.setProperty("--map-highlight", borderColor);
-  }
   card.style.setProperty("--map-delay", `${Math.min(depth * 75 + order * 45, 360)}ms`);
   const button = document.createElement("button");
   button.className = "map-node";
@@ -990,9 +984,7 @@ function renderNode(node, depth = 0, order = 0, branchHue = null) {
       });
     });
     card.appendChild(toggle);
-    node.children.forEach((child, index) => children.appendChild(renderNode(
-      child, depth + 1, index, depth === 0 ? (210 + index * 137.508) % 360 : branchHue,
-    )));
+    node.children.forEach((child, index) => children.appendChild(renderNode(child, depth + 1, index)));
     li.appendChild(children);
   }
   return li;

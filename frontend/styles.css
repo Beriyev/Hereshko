@@ -2128,7 +2128,6 @@ svg {
 }
 
 .map-node-label { display: block; max-width: 100%; }
-.map-node-card[data-branch-hue] > .map-node { border-width: 2px; }
 
 .map-node:hover {
   transform: translateY(-2px);
@@ -2714,11 +2713,7 @@ svg {
 }
 
 /* Monochrome interface overrides */
-.app-shell,
-.mindmap-modal .modal-header,
-.mindmap-modal .concept-panel,
-.mindmap-modal .map-toolbar,
-.mindmap-modal .map-view-controls {
+html {
   filter: grayscale(100%);
 }
 

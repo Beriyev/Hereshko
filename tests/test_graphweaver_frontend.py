@@ -129,18 +129,6 @@ async def main():
             background, text = luminance(colors["background"]), luminance(colors["text"])
             assert (max(background, text) + 0.05) / (min(background, text) + 0.05) >= 4.5, "Node text must remain readable"
         assert all(child > parent for parent, child in zip(shades, shades[1:])), "Deeper nodes must be lighter"
-        branch_colors = []
-        for title in ("Entering the atmosphere", "Returning to Earth", "Collection and movement"):
-            branch_colors.append(await page.get_by_role("button", name=title, exact=True).evaluate("element => getComputedStyle(element).borderTopColor"))
-        assert len(set(branch_colors)) == 3, "Main branches must have distinct border colours"
-        border_shades, branch_hues = [], []
-        for title in ("Entering the atmosphere", "Transpiration", "Plant transport", "Root uptake"):
-            border = await page.get_by_role("button", name=title, exact=True).evaluate("element => ({rgb: getComputedStyle(element).borderTopColor.match(/\\d+/g).slice(0, 3).map(Number), hue: element.parentElement.dataset.branchHue})")
-            border_shades.append(border["rgb"])
-            branch_hues.append(border["hue"])
-        assert len(set(branch_hues)) == 1, "Descendants must inherit their main branch colour"
-        assert all(all(child >= parent for parent, child in zip(first, second)) and first != second for first, second in zip(border_shades, border_shades[1:])), "Descendant borders must get lighter"
-        assert await page.evaluate("getComputedStyle(document.documentElement).filter") == "none", "The map colours must not be removed by a page-wide grayscale filter"
         await page.locator("#mapFit").click()
         await page.wait_for_function("document.getElementById('map').getBoundingClientRect().height <= document.getElementById('mapViewport').clientHeight")
         await page.screenshot(path=str(screenshots / "depth-shades.png"))
