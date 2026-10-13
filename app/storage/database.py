@@ -49,6 +49,7 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_sources_notebook_id
             ON sources(notebook_id);
+
             """
         )
 

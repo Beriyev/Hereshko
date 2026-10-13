@@ -39,6 +39,47 @@ Both modes support recent conversation context and an explicit **Web Search** to
 
 Table support here is **answer rendering**. The ingestion pipeline does not yet extract and preserve native document tables as structured rows and cells.
 
+### GraphWeaver mind maps
+
+GraphWeaver uses Gemini to turn a selected notebook source into a mind map of its central topic, main themes, and subtopics. It reads the complete persisted extraction and requests structured output matching the Pydantic `MindMap` schema.
+
+- Open **Graphweaver** in the notebook workspace, choose a source, and click **Generate map**.
+- Explore a top-down map with main themes in a row and subtopics stacked in compact columns below them.
+- Expand or collapse branches using the buttons at the outgoing connectors. White connector lines stop at the final note in each branch.
+- Select a node to read its summary and create a question for **Ask Hereshko**.
+- Scroll or click and drag the background or a node to pan. Use **Ctrl/Command + scrollwheel** or the zoom buttons to zoom; **Fit** restores an overview.
+- The map follows the monochrome theme, with progressively lighter node backgrounds at deeper levels, centered labels, and boxes that grow to fit longer text.
+- Generation shows three animated dots; node reveals, branch movement, and zoom animate while respecting reduced-motion preferences.
+- **Regenerate** requests a fresh map. Maps are cached by source in the open page and cleared when the page reloads.
+
+Map generation currently uses one source at a time. Sources added before extraction persistence was introduced must be uploaded or added again before generating a map.
+
+## TestWeaver backend
+
+TestWeaver supports objective MCQ tests and subjective written tests. Generation selects a random topic for each question from the selected source. Expected subjective answers use the notebook's existing L1 retrieval pipeline.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/notebooks/{notebook_id}/testweaver/topics` | Extract topic JSON from a source; body: `{"document_id": "..."}` |
+| `POST` | `/notebooks/{notebook_id}/testweaver/generate` | Generate an objective or subjective test |
+| `POST` | `/testweaver/compare` | Compare a subjective answer with its expected answer |
+
+Example generation body:
+
+```json
+{"document_id": "your-document-id", "mode": "objective", "number_of_questions": 5}
+```
+
+Use `"subjective"` for written questions. Objective tests accept 1–50 questions; subjective tests accept 1–3. Objective questions include four options, the zero-based `correct_option` (0–3), and an explanation. Subjective questions include `expected_answer`.
+
+Example subjective comparison:
+
+```json
+{"question": "Explain photosynthesis.", "expected_answer": "Expected answer", "provided_answer": "Learner answer"}
+```
+
+The comparison response contains correctness, a score out of 10, and points to improve. The frontend checks MCQ selections against `correct_option`. Generated tests are returned immediately and are not persisted.
+
 ## Supported sources
 
 | Source | Current extraction path | Position metadata |
@@ -96,13 +137,17 @@ SQLite source metadata              |
 
 Extraction boundaries preserve source positions while chunking. Embedding inputs include the source title, source type, and chunk text. Source records are saved after their chunks have been inserted into Weaviate.
 
+Before chunking and indexing, each extracted `Document` is saved as JSON under `data/persist/<document_id>/document.json`. GraphWeaver loads this file, sends its content to Gemini, and returns a flat list of nodes with IDs, parent IDs, titles, and summaries. The frontend assembles the tree from those parent links; the root has `parent_id: null`.
+
 ### Storage and session lifetime
 
 - **SQLite:** `data/hereshko.db` stores notebook records, source metadata, and the first 2,000 characters of each source as a preview.
 - **Weaviate:** the Docker volume `weaviate_data` stores chunk text, embeddings, and citation position metadata.
 - **Conversation history:** held in backend memory, with up to eight messages per session. It is lost when the backend restarts; the frontend creates a new session when the page loads.
 - **Notebook overview cache:** held in backend memory for L2 planning and invalidated when sources change.
-- **Original uploads:** not retained as a permanent file library. The current storage keeps extracted chunks and source metadata.
+- **Persisted extractions:** `data/persist/<document_id>/document.json` keeps complete extracted text and metadata for GraphWeaver, even if later indexing fails. These files are ignored by Git; source deletion currently leaves them on disk.
+- **Mind maps:** cached in frontend memory for the open page; generated maps are not saved to the backend.
+- **Original uploads:** temporary uploaded files are still removed after processing. The persisted JSON contains extracted content, not the original PDF, DOCX, or PPTX.
 
 ## Local setup
 
@@ -113,6 +158,7 @@ The bundled launcher targets Windows and PowerShell. Python dependencies are def
 - Python 3.11 for the project environment and `uv` for dependency management.
 - Docker Desktop with Docker Compose.
 - A Groq API key for chat, notebook overviews, and YouTube transcription.
+- A Gemini API key for GraphWeaver mind-map generation.
 - An NVIDIA GPU with working Docker GPU support for the bundled reranker configuration. Compose requests all GPUs and enables CUDA for that service.
 - LibreOffice for PPTX ingestion.
 - FFmpeg and Deno for the YouTube ingestion path, available on `PATH` or through the supported Deno configuration.
@@ -127,6 +173,7 @@ Create or edit `.env` in the repository root. A minimal configuration is:
 
 ```dotenv
 GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
 Useful optional settings and their current defaults:
@@ -134,6 +181,7 @@ Useful optional settings and their current defaults:
 ```dotenv
 GROQ_LLM_MODEL=qwen/qwen3.8-27b
 GROQ_WHISPER_MODEL=whisper-large-v3-turbo
+GEMINI_MODEL=gemini-3.8-flash
 EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
 EMBEDDING_DEVICE=cuda
 EMBEDDING_BATCH_SIZE=8
@@ -196,6 +244,7 @@ To stop manually launched servers, press Ctrl+C in their terminals. To stop the 
 5. Ask a question in L1, or switch to L2 for a question that benefits from decomposition.
 6. Enable Web Search when you want additional evidence from the web.
 7. Open the numbered citation buttons to inspect the supporting text.
+8. Open **Graphweaver**, select a source, and generate a mind map. Expand its branches, inspect concept summaries, or send a selected concept's prompt to chat.
 
 The notebook library supports search, sorting, creation, and renaming. The workspace title is also editable. Source deletion updates both the notebook metadata and the vector index.
 
@@ -235,12 +284,23 @@ Cookies must be available on the machine running the backend. A locked browser d
 | `DELETE` | `/notebooks/{notebook_id}/sources/{document_id}` | Remove one source |
 | `DELETE` | `/notebooks/{notebook_id}/sources` | Remove all sources in a notebook |
 | `POST` | `/notebooks/{notebook_id}/summary` | Generate an introductory overview |
+| `POST` | `/notebooks/{notebook_id}/mindmap` | Generate a map from a notebook source using a JSON `document_id` |
 | `POST` | `/ingest/upload` | Upload a file with multipart `file` and `notebook_id` |
 | `POST` | `/ingest/scrape` | Index one page with form `url` and `notebook_id` |
 | `POST` | `/ingest/website` | Crawl and index a site with form `url` and `notebook_id` |
 | `POST` | `/ingest/youtube` | Transcribe and index a video with form `url` and `notebook_id` |
 | `POST` | `/chat/l1` | Return a JSON answer and citations |
 | `POST` | `/chat/l2` | Stream research progress and the final answer as NDJSON |
+
+Example mind-map request body:
+
+```json
+{
+  "document_id": "your-document-id"
+}
+```
+
+The document must belong to the notebook in the URL. The response is `{"nodes": [...]}`, with each node containing `id`, `parent_id`, `title`, and `summary`. Missing persisted content returns HTTP 409; Gemini quota limits return 429, temporary unavailability returns 503, and timeouts return 504. Other generation errors include a readable `detail` message for the frontend.
 
 Example L1 request:
 
@@ -262,7 +322,7 @@ The MCP service exposes `web_search` through DuckDuckGo and `scrape_page` throug
 
 ```text
 app/
-  api/                 Chat, ingestion, and notebook routes
+  api/                 Chat, ingestion, notebook, and GraphWeaver routes
   clients/             Groq, Weaviate, and MCP connections
   core/                Documents, chunks, notebooks, conversations, errors
   schemas/             API request and response models
@@ -272,12 +332,12 @@ app/
     scraper/           HTTP/browser fetching, extraction, crawling
     search/            DuckDuckGo search
     video/             YouTube audio download and transcription
-    noteweaver/        Placeholder for future work
-  storage/             SQLite metadata and overview cache
+    graphweaver/       Gemini mind-map generation from persisted sources
+  storage/             SQLite metadata, extracted document JSON, overview cache
   main.py              FastAPI entry point
   mcp_server.py        MCP web tools entry point
 frontend/              Static notebook library and workspace
-data/                  Local SQLite database created at runtime
+data/                  Local SQLite database and persisted extractions
 tests/                 Regression tests, smoke scripts, retrieval benchmarks
 docker-compose.yml     Weaviate and GPU reranker services
 pyproject.toml         Python dependencies and uv index configuration
@@ -306,6 +366,14 @@ node tests/test_l2_frontend.cjs
 node tests/test_ingestion_loading.cjs
 ```
 
+GraphWeaver browser checks use Playwright Chromium and fixture API responses, without calling Gemini or changing notebook data:
+
+```powershell
+uv run python -m tests.test_graphweaver_frontend
+```
+
+They cover generation requests, loading-dot visibility, compact layout, nested connectors, label sizing and centering, depth shading, branch controls, scrolling, zoom, dragging, retries, cached maps, mobile layout, and reduced motion. The check also writes preview screenshots to a temporary directory.
+
 The repository also contains scraper checks, live ingestion smoke scripts, and read-only retrieval benchmarks. Live smoke scripts can create indexed sample data and require running services. The benchmark modules use existing indexed sources and local models; they measure dense retrieval and MMR rather than the full hybrid/reranker/answer pipeline.
 
 ```powershell
@@ -323,7 +391,8 @@ An older dispatcher assertion in `tests/test_l2_routes.py` refers to `routes_cha
 - Conversation history and overview caches are not persisted across backend restarts.
 - L1 returns a complete JSON response; L2 streams progress events, not individual generated tokens.
 - Citation instructions guide model output; they are not an independent factual verification system.
-- The mind-map UI is a placeholder backed by hardcoded data. It can send a selected prompt to chat but does not generate a source-derived graph.
+- GraphWeaver generates a single-source hierarchy rather than a cross-source entity graph. Node summaries do not include individual evidence citations, and sending a prompt to chat uses the existing notebook chat retrieval.
+- GraphWeaver sends the complete extracted source in one Gemini request; very large documents must fit the configured model's input limit. Maps are not persisted across page reloads.
 - Noteweaver and authentication scaffolding do not currently expose implemented application features. The app is a local development workspace without account access controls.
 - The provided Compose deployment enables anonymous Weaviate access and is intended for local development.
 
@@ -335,6 +404,9 @@ An older dispatcher assertion in `tests/test_l2_routes.py` refers to `routes_cha
 | Retrieval or indexing cannot connect | Check `docker compose ps` and the Weaviate/reranker logs; confirm HTTP port 8080 and gRPC port 50051 are available. |
 | GPU reranker fails to start | Check Docker GPU support and the NVIDIA driver. A CPU container configuration requires changing Compose explicitly. |
 | Chat or overview generation fails | Check `GROQ_API_KEY`, configured model access, and the backend error output. |
+| GraphWeaver reports no saved extracted content | Upload the file or add the website/video again, then select the new source. Older indexed sources do not have persisted extraction files. |
+| GraphWeaver generation fails | Check `GEMINI_API_KEY` and `GEMINI_MODEL`. For 429, check quota; for 503 or 504, retry later. Restart the backend after configuration changes. |
+| GraphWeaver still shows an older layout | Hard-refresh the frontend with Ctrl + Shift + R, then reopen the map. |
 | Web Search fails | Confirm `app.mcp_server` is running and `MCP_SERVER_URL` points to its `/mcp` endpoint. |
 | PPTX ingestion fails | Check LibreOffice discovery, PaddleOCR dependencies, and CUDA runtime paths; use the Windows launcher. |
 | YouTube processing fails | Check FFmpeg, Deno, Groq transcription access, and any reported authentication/cookie failure. |
@@ -346,8 +418,8 @@ The frontend defaults to `http://localhost:8000`. To override it, set `window.HE
 
 ## Roadmap
 
-**V1 — current baseline:** notebook management, source ingestion, conventional RAG, L1/L2 research, optional MCP web evidence, citations, introductory overviews, and formatted answers.
+**V1 — current baseline:** notebook management, source ingestion and extraction persistence, conventional RAG, L1/L2 research, optional MCP web evidence, citations, introductory overviews, formatted answers, and GraphWeaver mind maps.
 
 **V1.5 — planned:** engineer a custom GraphRAG retrieval path that connects entities and relationships across notebook sources, preserves links to original evidence, and keeps the existing RAG system as a fallback. Evaluate it against real notebook questions before making it the primary path.
 
-Features that depend on GraphRAG follow that foundation. Source-derived mind maps and other graph-dependent functionality remain future work.
+GraphWeaver currently generates source-derived mind maps directly from persisted documents. Cross-source entity and relationship exploration remains planned as part of the GraphRAG foundation.
