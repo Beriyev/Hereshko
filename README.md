@@ -124,25 +124,25 @@ flowchart TB
     end
 
     subgraph studio["Studio"]
-        graph["GraphWeaver · Gemini mind maps"]
+        graphweaver["GraphWeaver · Gemini mind maps"]
         tests["TestWeaver · Gemini topics and questions"]
     end
 
     api --> extract
     api --> query
     api -. "Web Search enabled" .-> research
-    api --> graph
+    api --> graphweaver
     api --> tests
     api <--> metadata
     extract --> documents
     embed --> vectors
     embed --> metadata
     vectors --> retrieve
-    documents --> graph
+    documents --> graphweaver
     documents --> tests
     tests -. "Subjective expected answers use L1" .-> query
     answer --> frontend
-    graph --> frontend
+    graphweaver --> frontend
     tests --> frontend
 ```
 
