@@ -54,31 +54,24 @@ GraphWeaver uses Gemini to turn a selected notebook source into a mind map of it
 
 Map generation currently uses one source at a time. Sources added before extraction persistence was introduced must be uploaded or added again before generating a map.
 
-## TestWeaver backend
+## TestWeaver practice
 
 TestWeaver supports objective MCQ tests and subjective written tests. Generation selects a random topic for each question from the selected source. Expected subjective answers use the notebook's existing L1 retrieval pipeline.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `POST` | `/notebooks/{notebook_id}/testweaver/topics` | Extract topic JSON from a source; body: `{"document_id": "..."}` |
-| `POST` | `/notebooks/{notebook_id}/testweaver/generate` | Generate an objective or subjective test |
-| `POST` | `/testweaver/compare` | Compare a subjective answer with its expected answer |
+| `POST` | `/testweaver/objective/generate` | Generate MCQs from a source |
+| `POST` | `/testweaver/subjective/generate` | Generate written questions and expected answers |
+| `POST` | `/testweaver/objective/submit` | Check selected option strings |
+| `POST` | `/testweaver/subjective/submit` | Evaluate written answers |
 
-Example generation body:
+Open **Testweaver** in Studio, select a source, choose objective or subjective questions, and generate a test. Difficulty badges use green for easy, yellow for medium, and red for hard. Answer every question, then click **Check answers** to see scores out of 10, explanations, and improvement points. Expected subjective answers can be expanded after checking.
 
-```json
-{"document_id": "your-document-id", "mode": "objective", "number_of_questions": 5}
-```
+Generation uses query parameters `document_id`, `notebook_id`, and `number_of_questions`. Objective tests accept 1–10 MCQs; subjective tests accept 1–3 questions. Objective questions include four options, the exact `correct_option` string, and an explanation. Subjective generation returns `[question, expected_answer]` pairs. All answers are available to the frontend, which controls when feedback is displayed.
 
-Use `"subjective"` for written questions. Objective tests accept 1–50 questions; subjective tests accept 1–3. Objective questions include four options, the zero-based `correct_option` (0–3), and an explanation. Subjective questions include `expected_answer`.
+Objective submission sends JSON `question_list` and `provided_answers_list`; subjective submission sends `pairs_list` and `answer_list`. Both return result lists containing correctness, a score out of 10, and optional improvement points or an MCQ explanation. The UI shows the mean question score. Failed checks preserve answers for retrying.
 
-Example subjective comparison:
-
-```json
-{"question": "Explain photosynthesis.", "expected_answer": "Expected answer", "provided_answer": "Learner answer"}
-```
-
-The comparison response contains correctness, a score out of 10, and points to improve. The frontend checks MCQ selections against `correct_option`. Generated tests are returned immediately and are not persisted.
+Tests stay in the open page's memory and survive closing and reopening the panel. Reloading the page clears them. Testweaver does not persist tests. Modal transitions, the mode switch, loading dots and skeletons, option selection, question reveals, and feedback animate while respecting reduced-motion preferences.
 
 ## Supported sources
 
@@ -181,7 +174,7 @@ Useful optional settings and their current defaults:
 ```dotenv
 GROQ_LLM_MODEL=qwen/qwen3.8-27b
 GROQ_WHISPER_MODEL=whisper-large-v3-turbo
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
 EMBEDDING_DEVICE=cuda
 EMBEDDING_BATCH_SIZE=8

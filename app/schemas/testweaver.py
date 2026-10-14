@@ -24,10 +24,6 @@ class TopicSet(BaseModel):
         return self
 
 
-class TopicsRequest(BaseModel):
-    document_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
-
-
 class Question(BaseModel):
     question_id: str = Field(min_length=1)
     question: str = Field(min_length=1)
@@ -36,7 +32,7 @@ class Question(BaseModel):
 
 class MCQQuestion(Question):
     options: list[str] = Field(min_length=4, max_length=4)
-    correct_option: int = Field(ge=0, le=3, strict=True, description="Zero-based index of the correct option")
+    correct_option: str = Field(description="This is the correct option string.")
     explanation: str = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -52,32 +48,18 @@ class MCQQuestion(Question):
 class Result(BaseModel):
     correctness: Literal["correct", "partially_correct", "incorrect"]
     score: int = Field(ge=0, le=10)
-    points_to_improve: list[str]
+    points_to_improve: list[str] | None = None
+    mcq_explanation: str | None = None
 
 
-class TestRequest(TopicsRequest):
-    mode: Literal["objective", "subjective"]
-    number_of_questions: int = Field(ge=1, le=50, strict=True)
+class SubjectiveGenerationResponse(BaseModel):
+    question_answer_pairs: list[tuple[Question, str]]
 
 
-class SubjectiveQuestion(Question):
-    expected_answer: str
+class ObjectiveGenerationResponse(BaseModel):
+    mcq_questions: list[MCQQuestion]
 
 
-class ObjectiveTest(BaseModel):
-    mode: Literal["objective"] = "objective"
-    questions: list[MCQQuestion] = Field(min_length=1)
+class SubmissionResponse(BaseModel):
+    results: list[Result]
 
-
-class SubjectiveTest(BaseModel):
-    mode: Literal["subjective"] = "subjective"
-    questions: list[SubjectiveQuestion] = Field(min_length=1, max_length=3)
-
-
-GeneratedTest = ObjectiveTest | SubjectiveTest
-
-
-class CompareAnswersRequest(BaseModel):
-    question: str = Field(min_length=1)
-    expected_answer: str = Field(min_length=1)
-    provided_answer: str

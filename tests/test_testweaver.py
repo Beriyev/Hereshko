@@ -37,19 +37,26 @@ class TopicGenerationTests(unittest.TestCase):
 
     def generate(self, text):
         client = Mock()
+        source_file = SimpleNamespace(name="files/topic-source")
+        client.files.upload.return_value = source_file
         client.models.generate_content.return_value = SimpleNamespace(text=text)
         with patch.object(generator, "load_document", return_value=self.document) as load, \
              patch.object(generator.genai, "Client", return_value=client):
             result = generator.generate_topics("doc-1")
         load.assert_called_once_with(document_id="doc-1")
+        upload = client.files.upload.call_args.kwargs
+        self.assertEqual(upload["file"].getvalue(), self.document.content.encode("utf-8"))
+        self.assertEqual(upload["config"], {"mime_type": "text/plain", "display_name": self.document.title})
+        client.files.delete.assert_called_once_with(name="files/topic-source")
         client.close.assert_called_once()
         return result, client.models.generate_content.call_args.kwargs
 
-    def test_uses_full_source_json_and_structured_topic_schema(self):
+    def test_uses_uploaded_source_and_structured_topic_schema(self):
         result, arguments = self.generate(json.dumps(TOPICS))
         self.assertEqual(result, TOPICS)
-        self.assertIn(self.document.model_dump_json(), arguments["contents"])
-        self.assertIn("no fixed count", arguments["contents"])
+        self.assertEqual(arguments["contents"][0].name, "files/topic-source")
+        self.assertIn("attached source file", arguments["contents"][1])
+        self.assertIn("no fixed count", arguments["contents"][1])
         self.assertEqual(arguments["config"].response_mime_type, "application/json")
         self.assertIs(arguments["config"].response_schema, TopicSet)
 

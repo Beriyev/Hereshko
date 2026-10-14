@@ -8,7 +8,8 @@
       content="Hereshko — a local-first study and research workspace."
     />
     <title>Hereshko — Study & Research</title>
-    <link rel="stylesheet" href="styles.css?v=17" />
+    <link rel="stylesheet" href="styles.css?v=20" />
+    <link rel="stylesheet" href="testweaver.css?v=4" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
   </head>
   <body>
@@ -84,14 +85,14 @@
             </div>
             <div class="url-input-wrap">
               <input id="websiteInput" type="url" placeholder="Paste a website URL" />
-              <button id="scrapeWebsite" type="button" aria-label="Scrape this page">
-                <span>Scrape</span>
+              <button id="crawlWebsite" type="button" aria-label="Crawl this site">
+                <span>Crawl</span>
                 <span class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
               </button>
             </div>
-            <button id="crawlWebsite" class="crawl-button" type="button">
-              <span>Crawl site</span>
-              <span class="crawl-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <button id="scrapeWebsite" class="website-action-button" type="button" aria-label="Scrape this page">
+              <span>Scrape site</span>
+              <span class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
             </button>
           </div>
 
@@ -154,12 +155,6 @@
 
             <section class="conversation" id="conversation" aria-live="polite">
               <div class="empty-conversation" id="emptyConversation">
-                <div class="empty-orbit">
-                  <span></span><span></span><span></span>
-                  <div class="empty-core">
-                    <svg viewBox="0 0 24 24"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3Z" /></svg>
-                  </div>
-                </div>
                 <h3>Ask across every source</h3>
                 <p>Hereshko retrieves, reranks, and grounds each answer in your notebook.</p>
                 <div class="suggestion-grid">
@@ -208,12 +203,12 @@
           </div>
 
           <div class="tool-grid">
-            <button class="tool-card upcoming-tool" data-toast="Questionweaver is upcoming">
+            <button class="tool-card" id="testweaverButton" aria-haspopup="dialog">
               <span class="tool-icon mint">
                 <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h5M8 16h3" /></svg>
               </span>
-              <span><strong>Questionweaver</strong><small>Upcoming</small></span>
-              <em>soon</em>
+              <span><strong>Testweaver</strong><small>Put your knowledge to work</small></span>
+              <em>test</em>
             </button>
             <button class="tool-card" id="graphweaverButton" aria-haspopup="dialog">
               <span class="tool-icon amber">
@@ -317,7 +312,6 @@
             </button>
             <div class="concept-sources" id="conceptSources">
               <span>Map source</span>
-              <div><i></i><i></i><i></i><i></i></div>
               <small>No node selected</small>
             </div>
           </aside>
@@ -325,12 +319,75 @@
       </section>
     </div>
 
+    <dialog class="testweaver-dialog" id="testweaverModal" aria-labelledby="testweaverTitle">
+      <header class="modal-header">
+        <h2 id="testweaverTitle">Testweaver</h2>
+        <button class="icon-button" id="closeTestweaver" type="button" aria-label="Close Testweaver">
+          <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </header>
+      <div class="tw-workspace">
+        <aside class="tw-settings">
+          <h3>Test your Knowledge</h3>
+          <p>Turn a source into questions and see where your understanding stands.</p>
+          <form id="testweaverSetup">
+            <label class="tw-label" for="testweaverSource">Source</label>
+            <select id="testweaverSource" required><option value="">No sources yet</option></select>
+            <fieldset class="tw-mode">
+              <legend class="tw-label">Question type</legend>
+              <div class="tw-segment">
+                <label><input type="radio" name="testweaverMode" value="objective" checked /><span>Objective</span></label>
+                <label><input type="radio" name="testweaverMode" value="subjective" /><span>Subjective</span></label>
+              </div>
+            </fieldset>
+            <p class="tw-mode-description" id="testweaverModeDescription">You will be given four choices and one of them will be correct.</p>
+            <label class="tw-label" for="testweaverCount">Number of questions</label>
+            <input id="testweaverCount" type="number" value="5" min="1" max="10" step="1" required />
+            <small id="testweaverCountHint">Choose between 1 and 10.</small>
+            <button class="primary-button tw-generate" id="generateTestweaver" type="submit">
+              Generate test <svg viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+            </button>
+          </form>
+          <div class="tw-difficulty-key" aria-label="Difficulty levels">
+            <span class="tw-difficulty easy">Easy</span><span class="tw-difficulty medium">Medium</span><span class="tw-difficulty hard">Hard</span>
+          </div>
+          <p class="tw-session-note">Your practice stays here while this page is open.</p>
+        </aside>
+        <section class="tw-main" aria-label="Your test">
+          <div class="tw-main-heading"><span id="testweaverTestTitle">Choose a source to begin and then choose your format (subjective or objective).</span><span class="tw-session-tag">Practice session</span></div>
+          <p class="tw-status" id="testweaverStatus" role="status" aria-live="polite"></p>
+          <div class="tw-scroll" id="testweaverScroll">
+            <div class="tw-empty" id="testweaverEmpty">
+              <h3>Generate a Test.</h3>
+              <p>Pick a source and choose your format.</p>
+            </div>
+            <div class="tw-loading" id="testweaverLoading" hidden role="status">
+              <span class="chat-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <p>Generating your test. This may take a while.</p>
+            </div>
+            <form id="testweaverAnswers" hidden>
+              <section class="tw-score-card" id="testweaverScore" hidden aria-label="Test results" tabindex="-1">
+                <div><span class="eyebrow">SENTIMENT:</span><h3 id="testweaverScoreTitle">Your results</h3><p id="testweaverScoreDescription"></p></div>
+                <div class="tw-score"><strong id="testweaverScoreValue">0</strong><span>/ 10</span></div>
+              </section>
+              <div class="tw-questions" id="testweaverQuestions"></div>
+              <footer class="tw-submit-bar">
+                <div><strong id="testweaverProgressText">0 answered</strong><div class="tw-progress-track" role="progressbar" aria-label="Questions answered" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="testweaverProgress"></i></div></div>
+                <button class="primary-button" id="submitTestweaver" type="submit" disabled>Check answers <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg></button>
+              </footer>
+            </form>
+          </div>
+        </section>
+      </div>
+    </dialog>
+
     <div class="toast" id="toast" role="status"><span></span><p></p></div>
 
     <script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
-    <script defer src="app.js?v=17"></script>
+    <script defer src="app.js?v=20"></script>
+    <script defer src="testweaver.js?v=2"></script>
   </body>
 </html>

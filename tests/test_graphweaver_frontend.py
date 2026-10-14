@@ -78,7 +78,8 @@ async def main():
         await page.goto("http://graphweaver.test/index.html?notebook_id=nb-test")
         await expect(page.locator("#mindMapSource option")).to_have_count(2)
         await page.locator("#graphweaverButton").click()
-        await expect(page.locator(".map-empty-state strong")).to_have_text("Follow the ideas")
+        await expect(page.locator(".map-empty-state strong")).to_have_text("Break your sources down.")
+        await expect(page.locator(".map-state-icon")).to_have_count(0)
         await page.locator("#generateMap").click()
         await expect(page.locator("#generateMap")).to_be_disabled()
         await expect(page.locator("#mindMapSource")).to_be_disabled()
@@ -188,7 +189,7 @@ async def main():
         await expect(page.locator("#generateMap")).to_be_enabled()
         assert len(requests) == 2
         await page.locator("#mindMapSource").select_option("doc-2")
-        await expect(page.locator(".map-empty-state strong")).to_have_text("Follow the ideas")
+        await expect(page.locator(".map-empty-state strong")).to_have_text("Break your sources down.")
         state["fail"] = True
         await page.locator("#generateMap").click()
         await expect(page.locator(".map-empty-state strong")).to_have_text("Couldn't generate this map")

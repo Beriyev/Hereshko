@@ -310,6 +310,7 @@ function sourceMeta(source) {
 
 function renderSources(sources) {
   updateMindMapSources(sources);
+  document.dispatchEvent(new CustomEvent("notebook-sources-updated", { detail: sources }));
   elements.sourceList.innerHTML = "";
 
   if (!sources.length) {
@@ -845,9 +846,7 @@ function resetMapConcept() {
   elements.selectedConcept.textContent = "Choose a node";
   elements.conceptDescription.textContent = "Select a concept to read its summary and ask a question.";
   elements.prompt.value = "";
-  elements.conceptSources.classList.remove("active");
   elements.conceptSources.querySelector("small").textContent = "No node selected";
-  elements.conceptSources.querySelectorAll("i").forEach((bar) => { bar.style.opacity = "0.18"; });
 }
 
 function showMapMessage(title, description, loading = false) {
@@ -864,14 +863,11 @@ function showMapMessage(title, description, loading = false) {
     for (let index = 0; index < 3; index++) dots.appendChild(document.createElement("i"));
     state.appendChild(dots);
   } else {
-    const icon = document.createElement("span");
-    icon.className = "map-state-icon";
-    icon.textContent = "✧";
     const heading = document.createElement("strong");
     heading.textContent = title;
     const text = document.createElement("p");
     text.textContent = description;
-    state.append(icon, heading, text);
+    state.append(heading, text);
   }
   elements.map.replaceChildren(state);
   mapZoom = 1;
@@ -910,8 +906,6 @@ function selectMapNode(node, button) {
   elements.conceptDescription.textContent = node.summary;
   const source = mindMapSources.find((item) => item.document_id === document.getElementById("mindMapSource").value);
   elements.prompt.value = `Explain "${node.title}" using ${source?.title || "my notebook sources"}. Give a simple explanation, important details, and examples.`;
-  elements.conceptSources.classList.add("active");
-  elements.conceptSources.querySelectorAll("i").forEach((bar, index) => { bar.style.opacity = index === 0 ? "1" : "0.18"; });
   elements.conceptSources.querySelector("small").textContent = source?.title || "Selected notebook source";
 }
 
@@ -1082,7 +1076,7 @@ function showSelectedMindMap() {
   const cached = mindMapCache.get(sourceId);
   document.getElementById("mapHint").textContent = "Expand with + · Drag to pan · Scroll to move · Ctrl/⌘ + wheel to zoom";
   if (cached) renderMindMap(cached);
-  else showMapMessage(mindMapSources.length ? "Follow the ideas" : "Your map starts with a source",
+  else showMapMessage(mindMapSources.length ? "Break your sources down." : "Your map starts with a source",
     mindMapSources.length ? "Choose a source above, then generate its mind map." : "Add a document, website, or video to this notebook first.");
 }
 
