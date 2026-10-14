@@ -440,29 +440,6 @@ svg {
   background: rgba(255, 255, 255, 0.018);
 }
 
-.youtube-box::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  padding: 1px;
-  border-radius: inherit;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg 250deg,
-    rgba(255, 255, 255, 0.95) 286deg,
-    transparent 326deg 360deg
-  );
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.youtube-box.loading::before {
-  opacity: 1;
-  animation: websiteBorder 1.15s linear infinite;
-}
-
 .website-box.loading .url-input-wrap input {
   opacity: 0.58;
 }
@@ -2417,10 +2394,6 @@ svg {
   0%, 100% { opacity: 1; transform: translateY(0); }
   45% { opacity: 0; transform: translateY(5px); }
   55% { opacity: 0; transform: translateY(-5px); }
-}
-
-@keyframes websiteBorder {
-  to { transform: rotate(360deg); }
 }
 
 /* Compact loading indicators for ingestion and chat. */
