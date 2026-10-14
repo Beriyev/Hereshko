@@ -56,7 +56,17 @@ Map generation currently uses one source at a time. Sources added before extract
 
 ## TestWeaver practice
 
-TestWeaver supports objective MCQ tests and subjective written tests. Generation selects a random topic for each question from the selected source. Expected subjective answers use the notebook's existing L1 retrieval pipeline.
+TestWeaver supports objective MCQ tests and subjective written tests. Gemini extracts detailed topics from the selected source, including summaries and key points, and is prompted to place related topics next to one another. Topic JSON is cached in backend memory by source and model and reused across tests. Expected subjective answers use the notebook's existing L1 retrieval pipeline, with numbered citation markers removed before returning them.
+
+Each question uses the following selection process:
+
+- A roll from 1 to 10 selects multiple topics on 1–3; otherwise it selects one random topic.
+- For multiple-topic selection, another roll chooses two topics 60% of the time and three topics 40% of the time, limited by the number available.
+- Selection starts at a random topic. Forward and backward pointers choose neighboring topics with a 50/50 direction roll. Pointers stay within the array, and selection switches direction when one side is exhausted, without repeating a topic.
+- Both question generators receive a JSON array of the selected topics. Questions using multiple topics are prompted and classified as hard. Single-topic questions are classified by reasoning: easy for basic recall or explanation, medium for relationships or comparisons, and hard for synthesis or multiple reasoning steps.
+- Question scope and answer or explanation depth are prompted to match the supplied content and cover each selected topic meaningfully.
+
+A shared `spent_questions` list holds the 10 most recent successfully generated question texts across both modes and all sources. Each question prompt includes this list and asks Gemini to avoid identical or similar questions. This reduces repetition but does not guarantee uniqueness. Topic ordering by similarity is also a prompt instruction, rather than a validated grouping.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
@@ -71,7 +81,7 @@ Generation uses query parameters `document_id`, `notebook_id`, and `number_of_qu
 
 Objective submission sends JSON `question_list` and `provided_answers_list`; subjective submission sends `pairs_list` and `answer_list`. Both return result lists containing correctness, a score out of 10, and optional improvement points or an MCQ explanation. The UI shows the mean question score. Failed checks preserve answers for retrying.
 
-Tests stay in the open page's memory and survive closing and reopening the panel. Reloading the page clears them. Testweaver does not persist tests. Modal transitions, the mode switch, loading dots and skeletons, option selection, question reveals, and feedback animate while respecting reduced-motion preferences.
+Tests stay in the open page's memory and survive closing and reopening the panel. Reloading the page clears them. Testweaver does not persist tests. Backend topic caches and the spent-question list reset when the backend restarts. The interface matches the site's serif headings and monochrome styling, with difficulty colors, subtle button press animations, three loading dots, staggered question slides, and animated feedback while respecting reduced-motion preferences. Generation displays “Generating your test. This may take a while.” Results requiring improvement display “Needs improvement.”
 
 ## Supported sources
 
@@ -91,24 +101,73 @@ YouTube audio is split into 30-minute segments for transcription. Segment timest
 
 ## Architecture
 
-```text
-Static frontend (HTML / CSS / JavaScript)
-                |
-           FastAPI API
-                |
-    +-----------+-------------------+
-    |                               |
-Ingestion                      L1 / L2 chat
-    |                               |
-Extract -> normalize -> chunk       Embed query
-    |                               |
-Embed chunks -> Weaviate <--- Hybrid retrieval
-    |                         reranker + MMR
-SQLite source metadata              |
-                              Groq cited answers
-                                    |
-                         Optional MCP web research
-                         DuckDuckGo + page scraping
+```mermaid
+flowchart TB
+    frontend["Frontend · HTML / CSS / JavaScript"] --> api["FastAPI"]
+
+    subgraph ingestion["Source ingestion"]
+        extract["Extract and normalize"] --> chunk["Chunk text"]
+        chunk --> embed["Embed chunks · BGE"]
+    end
+
+    subgraph storage["Storage"]
+        documents[("Persisted document JSON")]
+        vectors[("Weaviate · chunks and embeddings")]
+        metadata[("SQLite · notebooks and source metadata")]
+    end
+
+    subgraph chat["L1 / L2 chat"]
+        query["Embed query"] --> retrieve["Hybrid retrieval"]
+        retrieve --> rank["Reranker and MMR"]
+        rank --> answer["Groq · cited answers"]
+        research["Optional MCP web research\nDuckDuckGo and page scraping"] --> answer
+    end
+
+    subgraph studio["Studio"]
+        graph["GraphWeaver · Gemini mind maps"]
+        tests["TestWeaver · Gemini topics and questions"]
+    end
+
+    api --> extract
+    api --> query
+    api -. "Web Search enabled" .-> research
+    api --> graph
+    api --> tests
+    api <--> metadata
+    extract --> documents
+    embed --> vectors
+    embed --> metadata
+    vectors --> retrieve
+    documents --> graph
+    documents --> tests
+    tests -. "Subjective expected answers use L1" .-> query
+    answer --> frontend
+    graph --> frontend
+    tests --> frontend
+```
+
+### TestWeaver generation and checking
+
+```mermaid
+flowchart TD
+    source["Selected source"] --> cache{"Topics cached?"}
+    cache -- "No" --> extract["Gemini · detailed ordered topics"]
+    extract --> topics["Topic JSON · backend memory"]
+    cache -- "Yes" --> topics
+    topics --> roll{"Roll 1–10"}
+    roll -- "4–10" --> single["One random topic"]
+    roll -- "1–3" --> multiple["Two topics: 60% · three topics: 40%\nForward / backward neighbor selection"]
+    single --> prompt["Question prompt · topics array"]
+    multiple --> prompt
+    history["Last 10 spent questions"] --> prompt
+    prompt --> question["Gemini · objective or subjective question\nMultiple topics classified as hard"]
+    question -- "Append question; keep last 10" --> history
+    question --> objective["MCQ options, correct option, explanation"]
+    question --> subjective["L1 · expected written answer"]
+    objective --> choices["Compare submitted option text"]
+    subjective --> grading["Gemini · compare written answer"]
+    choices --> results["Results · correctness and score out of 10\nExplanation or improvement points"]
+    grading --> results
 ```
 
 ### Current retrieval defaults
@@ -140,6 +199,7 @@ Before chunking and indexing, each extracted `Document` is saved as JSON under `
 - **Notebook overview cache:** held in backend memory for L2 planning and invalidated when sources change.
 - **Persisted extractions:** `data/persist/<document_id>/document.json` keeps complete extracted text and metadata for GraphWeaver, even if later indexing fails. These files are ignored by Git; source deletion currently leaves them on disk.
 - **Mind maps:** cached in frontend memory for the open page; generated maps are not saved to the backend.
+- **TestWeaver:** tests and answers are held in frontend memory. Topic JSON is cached in backend memory by source and model; a shared list keeps the last 10 generated questions for repetition avoidance. Neither is persisted.
 - **Original uploads:** temporary uploaded files are still removed after processing. The persisted JSON contains extracted content, not the original PDF, DOCX, or PPTX.
 
 ## Local setup
@@ -151,7 +211,7 @@ The bundled launcher targets Windows and PowerShell. Python dependencies are def
 - Python 3.11 for the project environment and `uv` for dependency management.
 - Docker Desktop with Docker Compose.
 - A Groq API key for chat, notebook overviews, and YouTube transcription.
-- A Gemini API key for GraphWeaver mind-map generation.
+- A Gemini API key for GraphWeaver mind maps and TestWeaver topic generation, question generation, and subjective grading.
 - An NVIDIA GPU with working Docker GPU support for the bundled reranker configuration. Compose requests all GPUs and enables CUDA for that service.
 - LibreOffice for PPTX ingestion.
 - FFmpeg and Deno for the YouTube ingestion path, available on `PATH` or through the supported Deno configuration.

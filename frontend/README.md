@@ -24,9 +24,10 @@ Then open `http://localhost:4173`.
 - GraphWeaver mind maps generated from a selected notebook source, with top-down branches, expand/collapse controls, zoom, and drag-to-pan
 - Mind-map prompts that can be sent back into the chat
 - Animated map reveals and branch movement; scrollwheel navigation, Ctrl/Command + wheel zoom, and dragging from the canvas or a node
-- Testweaver source selection, objective MCQs, and up to three subjective questions
+- Testweaver source selection, 1–10 objective MCQs, and 1–3 subjective questions
 - Answer progress, scores out of 10, MCQ explanations, and subjective improvement points with expected answers
-- Animated Testweaver modal, mode selector, loading dots and skeletons, staggered question reveals, selection states, and feedback; reduced-motion support
+- Testweaver styling aligned with Graphweaver: serif headings, compact text, monochrome controls, and colored difficulty badges
+- Animated Testweaver modal, button presses, three loading dots, staggered question slides, selection states, and feedback; reduced-motion support
 - Responsive desktop, tablet, and mobile layouts
 
 ## Backend connection
@@ -47,11 +48,21 @@ Testweaver calls `POST /testweaver/objective/generate` or
 subjective responses are `[question, expected_answer]` pairs. The frontend keeps
 them in memory until the page reloads and displays feedback after submission.
 
+The backend reuses cached source topics. Each question has a 30% chance of
+selecting multiple neighboring topics; within that selection, two topics have
+a 60% chance and three have a 40% chance. Both generators receive topic arrays,
+and questions using multiple topics are classified as hard. Prompts include
+the last 10 generated questions to discourage repeats; this history is shared
+across sources and modes and resets with the backend, along with the topic cache.
+
 Objective checking uses `POST /testweaver/objective/submit` with JSON
 `question_list` and `provided_answers_list` (exact option text). Subjective
 checking uses `POST /testweaver/subjective/submit` with JSON `pairs_list` and
 `answer_list`. Both return a result list. Failed checks preserve written answers
 and selected choices for retrying. Reopening Testweaver preserves the current test.
+Generation displays three animated dots and “Generating your test. This may take
+a while.” The result heading is “Nicely understood.” when every answer is correct
+and “Needs improvement.” otherwise.
 
 Browser checks use fixture responses without calling Gemini:
 
