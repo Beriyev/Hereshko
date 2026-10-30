@@ -637,14 +637,6 @@ elements.input.addEventListener("keydown", (event) => {
   }
 });
 
-document.querySelectorAll("[data-question]").forEach((button) => {
-  button.addEventListener("click", () => {
-    elements.input.value = button.dataset.question;
-    autoResizeTextarea();
-    elements.input.focus();
-  });
-});
-
 document.querySelectorAll("[data-toast]").forEach((button) => {
   button.addEventListener("click", () => showToast(button.dataset.toast));
 });

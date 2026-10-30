@@ -35,10 +35,6 @@ body {
 
 body {
   overflow: hidden;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-  background-size: 48px 48px;
 }
 
 button,
@@ -70,12 +66,7 @@ svg {
 }
 
 .ambient {
-  position: fixed;
-  border-radius: 999px;
-  filter: blur(120px);
-  pointer-events: none;
-  opacity: 0.1;
-  animation: drift 16s ease-in-out infinite alternate;
+  display: none;
 }
 
 .ambient-one {
@@ -108,8 +99,7 @@ svg {
   grid-template-columns: 292px minmax(320px, 1fr) 322px;
   align-items: center;
   border-bottom: 1px solid var(--line);
-  background: rgba(8, 9, 10, 0.78);
-  backdrop-filter: blur(24px);
+  background: var(--bg);
   position: relative;
   z-index: 10;
 }
@@ -254,19 +244,6 @@ svg {
   display: none !important;
 }
 
-.status-pill {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.status-pill i,
 .updated i {
   width: 6px;
   height: 6px;
@@ -283,8 +260,7 @@ svg {
 }
 
 .panel {
-  background: rgba(11, 12, 14, 0.64);
-  backdrop-filter: blur(18px);
+  background: var(--bg);
   padding: 22px 18px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -355,33 +331,19 @@ svg {
   overflow: hidden;
   border: 1px dashed rgba(255, 255, 255, 0.17);
   border-radius: var(--radius-md);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 200ms ease, transform 200ms ease, background 200ms ease;
 }
 
 .upload-zone::after {
-  content: "";
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  top: -80px;
-  left: -50px;
-  background: rgba(199, 255, 94, 0.12);
-  filter: blur(36px);
-  transition: 300ms ease;
+  content: none;
 }
 
 .upload-zone:hover,
 .upload-zone.dragging {
-  border-color: rgba(199, 255, 94, 0.48);
-  transform: translateY(-2px);
-  background: rgba(199, 255, 94, 0.035);
-}
-
-.upload-zone:hover::after {
-  transform: translate(60px, 40px) scale(1.4);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 
 .upload-zone input {
@@ -821,7 +783,7 @@ svg {
   width: 92%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #9dc746, var(--accent));
+  background: var(--accent);
 }
 
 .center-stage {
@@ -843,25 +805,15 @@ svg {
   overflow: hidden;
   max-width: 940px;
   margin: 0 auto;
-  padding: 29px 30px 22px;
+  padding: 26px 30px 20px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 82% 4%, rgba(199, 255, 94, 0.09), transparent 27%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .summary-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0.12), transparent 35%, rgba(199, 255, 94, 0.08));
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
+  content: none;
 }
 
 .summary-card h1 {
@@ -871,15 +823,6 @@ svg {
   line-height: 1.05;
   font-weight: 500;
   letter-spacing: -1.25px;
-}
-
-.spark {
-  width: 7px;
-  height: 7px;
-  display: inline-block;
-  background: var(--accent);
-  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
-  animation: twinkle 2s ease-in-out infinite;
 }
 
 .ghost-button {
@@ -909,7 +852,7 @@ svg {
 
 .summary-card > #summaryText {
   max-width: 790px;
-  margin: 22px 0 19px;
+  margin: 18px 0 0;
   color: #b1b6bc;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 14.5px;
@@ -917,36 +860,12 @@ svg {
   white-space: pre-wrap;
 }
 
-.summary-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.summary-chips button {
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  color: #9ea3aa;
-  background: rgba(0, 0, 0, 0.18);
-  font-size: 9px;
-  cursor: pointer;
-  transition: 180ms ease;
-}
-
-.summary-chips button:hover {
-  color: var(--accent);
-  border-color: rgba(199, 255, 94, 0.27);
-  background: var(--accent-soft);
-  transform: translateY(-1px);
-}
-
 .summary-meta {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-top: 22px;
-  padding-top: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
   color: var(--muted-2);
   font-size: 9px;
@@ -1026,42 +945,6 @@ svg {
   margin: 8px 0 20px;
   color: var(--muted);
   font-size: 10.5px;
-}
-
-.suggestion-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 9px;
-}
-
-.suggestion-grid button {
-  min-height: 64px;
-  padding: 12px;
-  text-align: left;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  color: #b7bbc0;
-  background: rgba(255, 255, 255, 0.018);
-  font-size: 10px;
-  cursor: pointer;
-  transition: 190ms ease;
-}
-
-.suggestion-grid button:hover {
-  transform: translateY(-3px);
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.045);
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
-}
-
-.suggestion-grid span {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 750;
-  text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 .chat-row {
@@ -1354,15 +1237,7 @@ svg {
 }
 
 .composer-wrap::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: -80px;
-  right: -80px;
-  bottom: -20px;
-  height: 155px;
-  background: linear-gradient(transparent, rgba(8, 9, 10, 0.96) 44%);
-  pointer-events: none;
+  content: none;
 }
 
 .composer {
@@ -1372,15 +1247,14 @@ svg {
   padding: 9px 9px 9px 11px;
   border: 1px solid var(--line-strong);
   border-radius: 18px;
-  background: rgba(18, 20, 23, 0.92);
-  backdrop-filter: blur(24px);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.43);
+  background: var(--surface-2);
+  box-shadow: none;
   transition: 180ms ease;
 }
 
 .composer:focus-within {
-  border-color: rgba(199, 255, 94, 0.33);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.43), 0 0 0 3px rgba(199, 255, 94, 0.045);
+  border-color: var(--line-strong);
+  box-shadow: none;
 }
 
 .composer-tool {
@@ -1798,7 +1672,7 @@ svg {
   width: 100%;
   height: var(--h);
   border-radius: 3px 3px 1px 1px;
-  background: linear-gradient(to top, rgba(199, 255, 94, 0.16), rgba(199, 255, 94, 0.68));
+  background: var(--accent);
   transform-origin: bottom;
   animation: growBar 700ms cubic-bezier(.2,.8,.2,1) both;
 }
@@ -1828,7 +1702,6 @@ svg {
   visibility: hidden;
   opacity: 0;
   background: rgba(2, 3, 4, 0.76);
-  backdrop-filter: blur(14px);
   transition: opacity 250ms ease, visibility 250ms;
 }
 
@@ -1882,10 +1755,7 @@ svg {
   min-height: 0;
   overflow: hidden;
   padding: 22px 28px 18px;
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.065) 1px, transparent 1.2px),
-    radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.035), transparent 38%);
-  background-size: 24px 24px, 100% 100%;
+  background: var(--bg);
 }
 
 .map-toolbar {
@@ -1899,8 +1769,7 @@ svg {
   margin-bottom: 9px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(12, 14, 16, 0.88);
-  backdrop-filter: blur(16px);
+  background: var(--surface);
 }
 
 .map-topic-input {
@@ -2297,7 +2166,6 @@ svg {
   color: #cfd2d5;
   background: rgba(18, 20, 23, 0.94);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
   transform: translate(-50%, 18px);
   visibility: hidden;
   opacity: 0;
@@ -2334,11 +2202,6 @@ svg {
 @keyframes pulse {
   0%, 100% { opacity: 0.55; transform: scale(0.85); }
   50% { opacity: 1; transform: scale(1.15); }
-}
-
-@keyframes twinkle {
-  0%, 100% { transform: rotate(0) scale(0.85); opacity: 0.65; }
-  50% { transform: rotate(45deg) scale(1.2); opacity: 1; }
 }
 
 @keyframes orbit {
@@ -2506,10 +2369,6 @@ svg {
     display: none;
   }
 
-  .top-actions .status-pill {
-    display: none;
-  }
-
   .top-actions {
     border-left: 0;
   }
@@ -2608,10 +2467,6 @@ svg {
     margin-left: 0;
   }
 
-  .suggestion-grid {
-    grid-template-columns: 1fr;
-  }
-
   .composer-wrap {
     left: 12px;
     right: 12px;
@@ -2692,13 +2547,11 @@ label:focus-within {
 }
 
 .summary-card {
-  background:
-    radial-gradient(circle at 82% 4%, rgba(255, 255, 255, 0.07), transparent 27%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+  background: var(--surface);
 }
 
 .summary-card::before {
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0.12), transparent 35%, rgba(255, 255, 255, 0.08));
+  content: none;
 }
 
 .file-icon.pdf,
@@ -2714,7 +2567,7 @@ label:focus-within {
 }
 
 .health-bar i {
-  background: linear-gradient(90deg, #777, #f2f2f2);
+  background: var(--accent);
 }
 
 .research-steps .done {
@@ -2758,4 +2611,56 @@ label:focus-within {
   padding: 18px 8px;
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
+}
+
+/* Match the notebook library's quiet, solid surfaces throughout the workspace. */
+.youtube-box,
+.source-card,
+.source-preview,
+.summary-meta > *,
+.l2-research,
+.message-bubble,
+.tool-card,
+.research-card,
+.activity-card,
+.concept-panel,
+.toast {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.source-card:hover,
+.source-card.active,
+.tool-card:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+  transform: none;
+}
+
+.message-bubble.user,
+.chat-row.user .message-bubble,
+.tool-card.upcoming-tool {
+  background: var(--surface-2);
+}
+
+.send-button,
+.primary-button,
+.library-action {
+  box-shadow: none;
+}
+
+.send-button:hover,
+.primary-button:hover {
+  box-shadow: none;
+}
+
+.map-node,
+.map-node.selected,
+.map-root-card > .map-node {
+  box-shadow: none;
+}
+
+.source-preview,
+.toast {
+  border: 1px solid var(--line-strong);
 }

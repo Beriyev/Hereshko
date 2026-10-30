@@ -44,7 +44,7 @@ async def create_mindmap(notebook_id: str, request: MindMapRequest) -> dict:
     except APIError as error:
         messages = {
             400: "Gemini rejected the request. Check the configured model and document size.",
-            401: "Gemini authentication failed. Check GEMINI_API_KEY on the backend.",
+            401: "Gemini authentication failed. Check GEMINI_STUDIO_API_KEY on the backend.",
             403: "Gemini access was denied. Check the API key and model access on the backend.",
             404: "The configured Gemini model is unavailable. Check GEMINI_MODEL on the backend.",
             429: "Gemini's rate limit or quota was reached. Try again later or check your API quota.",

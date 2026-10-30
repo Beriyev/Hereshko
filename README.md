@@ -195,7 +195,7 @@ Before chunking and indexing, each extracted `Document` is saved as JSON under `
 
 - **SQLite:** `data/hereshko.db` stores notebook records, source metadata, and the first 2,000 characters of each source as a preview.
 - **Weaviate:** the Docker volume `weaviate_data` stores chunk text, embeddings, and citation position metadata.
-- **Conversation history:** held in backend memory, with up to eight messages per session. It is lost when the backend restarts; the frontend creates a new session when the page loads.
+- **Conversation history:** session history is not retained. The frontend creates a new session ID when the page loads.
 - **Notebook overview cache:** held in backend memory for L2 planning and invalidated when sources change.
 - **Persisted extractions:** `data/persist/<document_id>/document.json` keeps complete extracted text and metadata for GraphWeaver, even if later indexing fails. These files are ignored by Git; source deletion currently leaves them on disk.
 - **Mind maps:** cached in frontend memory for the open page; generated maps are not saved to the backend.
@@ -211,7 +211,7 @@ The bundled launcher targets Windows and PowerShell. Python dependencies are def
 - Python 3.11 for the project environment and `uv` for dependency management.
 - Docker Desktop with Docker Compose.
 - A Groq API key for chat, notebook overviews, and YouTube transcription.
-- A Gemini API key for GraphWeaver mind maps and TestWeaver topic generation, question generation, and subjective grading.
+- A Gemini studio API key for GraphWeaver mind maps and TestWeaver topic generation, question generation, and subjective grading.
 - An NVIDIA GPU with working Docker GPU support for the bundled reranker configuration. Compose requests all GPUs and enables CUDA for that service.
 - LibreOffice for PPTX ingestion.
 - FFmpeg and Deno for the YouTube ingestion path, available on `PATH` or through the supported Deno configuration.
@@ -226,7 +226,7 @@ Create or edit `.env` in the repository root. A minimal configuration is:
 
 ```dotenv
 GROQ_API_KEY=your_groq_api_key
-GEMINI_API_KEY=your_gemini_api_key
+GEMINI_STUDIO_API_KEY=your_gemini_studio_api_key
 ```
 
 Useful optional settings and their current defaults:
@@ -434,7 +434,6 @@ uv run python -m tests.benchmark_chunking
 uv run python -m tests.benchmark_retrieval_counts
 ```
 
-An older dispatcher assertion in `tests/test_l2_routes.py` refers to `routes_chat.chat`, which is absent from the current explicit L1/L2 route implementation. That test needs updating before treating full-suite discovery as a release check.
 
 ## Current limits
 
@@ -458,7 +457,7 @@ An older dispatcher assertion in `tests/test_l2_routes.py` refers to `routes_cha
 | GPU reranker fails to start | Check Docker GPU support and the NVIDIA driver. A CPU container configuration requires changing Compose explicitly. |
 | Chat or overview generation fails | Check `GROQ_API_KEY`, configured model access, and the backend error output. |
 | GraphWeaver reports no saved extracted content | Upload the file or add the website/video again, then select the new source. Older indexed sources do not have persisted extraction files. |
-| GraphWeaver generation fails | Check `GEMINI_API_KEY` and `GEMINI_MODEL`. For 429, check quota; for 503 or 504, retry later. Restart the backend after configuration changes. |
+| GraphWeaver generation fails | Check `GEMINI_STUDIO_API_KEY` and `GEMINI_MODEL`. For 429, check quota; for 503 or 504, retry later. Restart the backend after configuration changes. |
 | GraphWeaver still shows an older layout | Hard-refresh the frontend with Ctrl + Shift + R, then reopen the map. |
 | Web Search fails | Confirm `app.mcp_server` is running and `MCP_SERVER_URL` points to its `/mcp` endpoint. |
 | PPTX ingestion fails | Check LibreOffice discovery, PaddleOCR dependencies, and CUDA runtime paths; use the Windows launcher. |

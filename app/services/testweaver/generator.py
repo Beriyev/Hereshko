@@ -55,7 +55,7 @@ def generate_topics(
     - Return JSON matching the supplied schema, without questions or difficulty labels.
 
     """
-    client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
+    client = genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value())
     source_file = None
     try:
         source_file = client.files.upload(
@@ -137,7 +137,7 @@ async def subjective_generate_question_and_answer(topics: list[Topic], notebook_
     </topics_json>
     """
 
-    async with genai.Client(api_key=settings.gemini_api_key.get_secret_value()).aio as client:
+    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
         question = await client.models.generate_content(
             model=model,
             contents=question_prompt,
@@ -212,7 +212,7 @@ async def subjective_compare_answers(question: str, expected_answer: str, provid
     {provided_answer}
     </provided_answer>
     """
-    async with genai.Client(api_key=settings.gemini_api_key.get_secret_value()).aio as client:
+    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
         result = await client.models.generate_content(
             model=model,
             contents=prompt,
@@ -285,7 +285,7 @@ async def objective_generate_question_and_answer(topics: list[Topic], notebook_i
     </topics_json>
     """
 
-    async with genai.Client(api_key=settings.gemini_api_key.get_secret_value()).aio as client:
+    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
         question_answer_pair = await client.models.generate_content(
             model=model,
             contents=prompt,

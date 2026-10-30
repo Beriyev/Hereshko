@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.core.chat import ChatMessage, ChatRole
 from app.core.normalization import Document
 
 
@@ -49,6 +50,21 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_sources_notebook_id
             ON sources(notebook_id);
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                notebook_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                message TEXT NOT NULL,
+
+                FOREIGN KEY (notebook_id)
+                    REFERENCES notebooks(notebook_id)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+            ON chat_messages(notebook_id, session_id, id);
 
             """
         )
@@ -281,3 +297,40 @@ def get_notebooks() -> list[dict]:
     for notebook in notebooks:
         notebook_list.append(dict(notebook))
     return notebook_list
+
+def get_history(notebook_id: str, session_id: str) -> list[ChatMessage]:
+    history: list[ChatMessage] = []
+    with get_connection() as connection:
+        messages = connection.execute(
+            """
+                SELECT c.role, c.message, c.id
+                FROM chat_messages c
+                WHERE c.notebook_id = ? AND c.session_id = ?
+                ORDER BY c.id ASC
+            """,
+            (notebook_id,session_id)
+        )
+
+        for message in messages:
+            history.append(
+                ChatMessage(
+                    role=ChatRole(message["role"]),
+                    content=message["message"],
+                    id=message["id"]
+                )
+            )
+    return history
+
+def save_history(notebook_id: str, session_id: str, message: ChatMessage) -> int:
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+                INSERT INTO chat_messages(notebook_id,session_id,role,message)
+                VALUES (?,?,?,?)
+            """,
+            (notebook_id, session_id, message.role.value, message.content)
+        )
+        message_id = cursor.lastrowid
+        if message_id is None:
+            raise RuntimeError("SQLite did not assign a chat message ID")
+        return message_id

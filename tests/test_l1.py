@@ -8,7 +8,6 @@ from app.core.chat import ChatMessage, ChatRole
 from app.core.exceptions import ChatError, HereshkoError, RetrievalError
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import l1
-from app.services.rag.memory import ConversationStore
 
 
 class L1Tests(unittest.IsolatedAsyncioTestCase):
@@ -91,31 +90,20 @@ class L1Tests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.detail, f"{prefix} failed: broken")
                 mocked.side_effect = None
 
-    async def test_route_owns_memory_and_saves_one_turn(self):
-        store = ConversationStore()
-        store.get_or_create("session", "notebook")
-        store.add_turn("session", "Earlier", "Earlier answer")
-        history = store.get_recent("session", 8)
-        with patch.object(routes_chat, "conversation_store", store), patch.object(
-            routes_chat, "answer_l1", new_callable=AsyncMock, return_value=self.response
-        ) as answer:
+    async def test_route_loads_and_saves_history(self):
+        history = [ChatMessage(role=ChatRole.USER, content="Previous question")]
+        with (
+            patch.object(routes_chat, "get_history", return_value=history) as get_history,
+            patch.object(routes_chat, "save_history", return_value=1) as save_history,
+            patch.object(routes_chat, "answer_l1", new_callable=AsyncMock, return_value=self.response) as answer,
+        ):
             result = await routes_chat.chat_l1(self.request, self.service)
         self.assertIs(result, self.response)
+        get_history.assert_called_once_with("notebook", "session")
         answer.assert_awaited_once_with(request=self.request, weaviate_service=self.service, history=history)
-        self.assertEqual(
-            [message.content for message in store.get_recent("session", 8)],
-            ["Earlier", "Earlier answer", "Question", "Answer"],
-        )
-
-    async def test_route_does_not_save_failed_answers(self):
-        store = ConversationStore()
-        with patch.object(routes_chat, "conversation_store", store), patch.object(
-            routes_chat, "answer_l1", new_callable=AsyncMock,
-            side_effect=HTTPException(status_code=500, detail="failed"),
-        ):
-            with self.assertRaises(HTTPException):
-                await routes_chat.chat_l1(self.request, self.service)
-        self.assertEqual(store.conversations, {})
+        self.assertEqual(save_history.call_count, 2)
+        self.assertEqual(save_history.call_args_list[0].args[2], ChatMessage(role=ChatRole.USER, content="Question"))
+        self.assertEqual(save_history.call_args_list[1].args[2], ChatMessage(role=ChatRole.ASSISTANT, content="Answer"))
 
 
 if __name__ == "__main__":

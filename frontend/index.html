@@ -8,8 +8,8 @@
       content="Hereshko — a local-first study and research workspace."
     />
     <title>Hereshko — Study & Research</title>
-    <link rel="stylesheet" href="styles.css?v=21" />
-    <link rel="stylesheet" href="testweaver.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=24" />
+    <link rel="stylesheet" href="testweaver.css?v=5" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" />
   </head>
   <body>
@@ -33,7 +33,6 @@
         </div>
 
         <div class="top-actions">
-          <span class="status-pill"><i></i> Local workspace</span>
           <button class="icon-button" aria-label="Settings">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg>
           </button>
@@ -130,7 +129,7 @@
             <section class="summary-card reveal">
               <div class="summary-topline">
                 <div>
-                  <span class="eyebrow"><i class="spark"></i> Notebook overview</span>
+                  <span class="eyebrow">Notebook overview</span>
                   <h1 id="generatedTitle">Notebook overview</h1>
                 </div>
                 <button class="ghost-button" id="refreshSummary">
@@ -140,12 +139,6 @@
               </div>
               <div id="summaryText">
                 Add a source to generate a short notebook overview.
-              </div>
-              <div class="summary-chips">
-                <button data-question="Explain the core ideas across my sources">Core concepts</button>
-                <button data-question="How are neural networks and transformers connected?">Connections</button>
-                <button data-question="What should I revise first?">Study priorities</button>
-                <button data-question="Where do my sources disagree?">Source conflicts</button>
               </div>
               <div class="summary-meta">
                 <span><b id="summarySourceCount">0</b> sources</span>
@@ -157,17 +150,6 @@
               <div class="empty-conversation" id="emptyConversation">
                 <h3>Ask across every source</h3>
                 <p>Hereshko retrieves, reranks, and grounds each answer in your notebook.</p>
-                <div class="suggestion-grid">
-                  <button data-question="Give me a beginner-friendly explanation of attention">
-                    <span>Understand</span>Explain attention simply
-                  </button>
-                  <button data-question="Compare the main approaches discussed in my sources, including their strengths and limitations.">
-                    <span>Compare</span>Key approaches and trade-offs
-                  </button>
-                  <button data-question="Create a five-question revision quiz">
-                    <span>Practice</span>Make a quick quiz
-                  </button>
-                </div>
               </div>
             </section>
           </div>
@@ -387,7 +369,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
-    <script defer src="app.js?v=20"></script>
+    <script defer src="app.js?v=21"></script>
     <script defer src="testweaver.js?v=2"></script>
   </body>
 </html>
