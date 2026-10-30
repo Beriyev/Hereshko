@@ -2,7 +2,7 @@
 
 Hereshko is a local study and research workspace. Organize documents, websites, and YouTube videos into notebooks, then ask questions with answers grounded in retrieved sources and numbered citations.
 
-**Current scope: V1.** The application uses conventional RAG with hybrid retrieval, reranking, and diversity selection. **V1.5 is planned to introduce a custom GraphRAG system, with the current RAG pipeline retained as a fallback.** GraphRAG is not implemented yet.
+**Current scope: V1.** The application uses RAG with hybrid retrieval, reranking, and diversity selection.
 
 ## What V1 includes
 
@@ -443,7 +443,7 @@ uv run python -m tests.benchmark_retrieval_counts
 - Conversation history and overview caches are not persisted across backend restarts.
 - L1 returns a complete JSON response; L2 streams progress events, not individual generated tokens.
 - Citation instructions guide model output; they are not an independent factual verification system.
-- GraphWeaver generates a single-source hierarchy rather than a cross-source entity graph. Node summaries do not include individual evidence citations, and sending a prompt to chat uses the existing notebook chat retrieval.
+- GraphWeaver generates a single-source hierarchy. Node summaries do not include individual evidence citations, and sending a prompt to chat uses the existing notebook chat retrieval.
 - GraphWeaver sends the complete extracted source in one Gemini request; very large documents must fit the configured model's input limit. Maps are not persisted across page reloads.
 - Noteweaver and authentication scaffolding do not currently expose implemented application features. The app is a local development workspace without account access controls.
 - The provided Compose deployment enables anonymous Weaviate access and is intended for local development.
@@ -472,6 +472,3 @@ The frontend defaults to `http://localhost:8000`. To override it, set `window.HE
 
 **V1 — current baseline:** notebook management, source ingestion and extraction persistence, conventional RAG, L1/L2 research, optional MCP web evidence, citations, introductory overviews, formatted answers, and GraphWeaver mind maps.
 
-**V1.5 — planned:** engineer a custom GraphRAG retrieval path that connects entities and relationships across notebook sources, preserves links to original evidence, and keeps the existing RAG system as a fallback. Evaluate it against real notebook questions before making it the primary path.
-
-GraphWeaver currently generates source-derived mind maps directly from persisted documents. Cross-source entity and relationship exploration remains planned as part of the GraphRAG foundation.
