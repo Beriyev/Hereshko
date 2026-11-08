@@ -2,13 +2,11 @@ import asyncio
 import json
 import random
 import re
-from io import BytesIO
 from uuid import uuid4
 
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
-from httpx import RequestError
+from app.clients.openrouter_client import (
+    openrouter_client, async_openrouter_client, response_text, structured_options,
+)
 
 from app.config import settings
 from app.core.exceptions import HereshkoError
@@ -24,7 +22,7 @@ spent_questions: list[str] = []
 
 def generate_topics(
     document_id: str,
-    model: str = settings.gemini_model,
+    model: str = settings.openrouter_study_model,
 ) -> dict:
     if (document_id, model) in topic_cache:
         return topic_cache[(document_id, model)]
@@ -33,7 +31,7 @@ def generate_topics(
         raise HereshkoError("This source has no extracted text to generate topics from.")
 
     prompt = """
-    Extract distinct study topics from the attached source file.
+    Extract distinct study topics from the source text in the user message.
     These topics will later be used to generate a test; do not generate questions yet.
 
     - Use only facts present in the source, without outside knowledge.
@@ -55,40 +53,16 @@ def generate_topics(
     - Return JSON matching the supplied schema, without questions or difficulty labels.
 
     """
-    client = genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value())
-    source_file = None
-    try:
-        source_file = client.files.upload(
-            file=BytesIO(document.content.encode("utf-8")),
-            config={
-                "mime_type": "text/plain",
-                "display_name": document.title,
-            },
-        )
-        response = client.models.generate_content(
-            model=model,
-            contents=[source_file, prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=TopicSet,
-            ),
-        )
-    finally:
-        try:
-            if source_file is not None and source_file.name:
-                client.files.delete(name=source_file.name)
-        except (APIError, RequestError) as error:
-            print(f"Could not delete the Gemini source file: {error}")
-        finally:
-            client.close()
-
-    if not response.text:
-        raise HereshkoError("Gemini returned no topic content.")
-    topics = TopicSet.model_validate_json(response.text)
+    response = openrouter_client.chat.completions.create(
+        model=model,
+        messages=[{"role": "system", "content": prompt}, {"role": "user", "content": document.content}],
+        **structured_options(TopicSet),
+    )
+    topics = TopicSet.model_validate_json(response_text(response, "OpenRouter returned no topic content."))
     topic_cache[(document_id, model)] = topics.model_dump()
     return topic_cache[(document_id, model)]
 
-async def subjective_generate_question_and_answer(topics: list[Topic], notebook_id: str, model: str = settings.gemini_model) -> tuple[Question,str]:
+async def subjective_generate_question_and_answer(topics: list[Topic], notebook_id: str, model: str = settings.openrouter_study_model) -> tuple[Question,str]:
     question_prompt = f"""
     Write exactly one clear, self-contained study question from the supplied topics array.
     It should invite an extended written answer explaining the supported concepts
@@ -137,19 +111,11 @@ async def subjective_generate_question_and_answer(topics: list[Topic], notebook_
     </topics_json>
     """
 
-    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
-        question = await client.models.generate_content(
-            model=model,
-            contents=question_prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=Question
-            )
-        )
-
-    if not question.text:
-        raise HereshkoError("Gemini returned no questions.")
-    question_module = Question.model_validate_json(question.text)
+    question = await async_openrouter_client.chat.completions.create(
+        model=model, messages=[{"role": "user", "content": question_prompt}],
+        **structured_options(Question),
+    )
+    question_module = Question.model_validate_json(response_text(question, "OpenRouter returned no questions."))
     if len(topics) > 1:
         question_module.difficulty = "hard"
 
@@ -162,7 +128,7 @@ async def subjective_generate_question_and_answer(topics: list[Topic], notebook_
         spent_questions.pop(0)
     return question_module,re.sub(r'\[\d+\]', '', expected_answer.answer)
 
-async def subjective_compare_answers(question: str, expected_answer: str, provided_answer: str, model: str = settings.gemini_model) -> Result:
+async def subjective_compare_answers(question: str, expected_answer: str, provided_answer: str, model: str = settings.openrouter_study_model) -> Result:
     prompt = f"""
     Evaluate the learner's answer to the question using the expected answer as
     the reference. Judge factual correctness, relevance, and coverage of the
@@ -212,22 +178,15 @@ async def subjective_compare_answers(question: str, expected_answer: str, provid
     {provided_answer}
     </provided_answer>
     """
-    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
-        result = await client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=Result
-            )
-        )
-    if not result.text:
-        raise HereshkoError("Gemini returned no answer check.")
-    return_result = Result.model_validate_json(result.text)
+    result = await async_openrouter_client.chat.completions.create(
+        model=model, messages=[{"role": "user", "content": prompt}],
+        **structured_options(Result),
+    )
+    return_result = Result.model_validate_json(response_text(result, "OpenRouter returned no answer check."))
 
     return return_result
 
-async def objective_generate_question_and_answer(topics: list[Topic], notebook_id: str, model: str = settings.gemini_model) -> MCQQuestion:
+async def objective_generate_question_and_answer(topics: list[Topic], notebook_id: str, model: str = settings.openrouter_study_model) -> MCQQuestion:
     prompt = f"""
     Generate exactly one multiple-choice study question from the supplied topics array.
     Use only information supported by the topics' summaries and key points.
@@ -285,19 +244,11 @@ async def objective_generate_question_and_answer(topics: list[Topic], notebook_i
     </topics_json>
     """
 
-    async with genai.Client(api_key=settings.gemini_studio_api_key.get_secret_value()).aio as client:
-        question_answer_pair = await client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=MCQQuestion
-            )
-        )
-
-    if not question_answer_pair.text:
-        raise HereshkoError("Gemini did not return the question model.")
-    final_pair = MCQQuestion.model_validate_json(question_answer_pair.text)
+    question_answer_pair = await async_openrouter_client.chat.completions.create(
+        model=model, messages=[{"role": "user", "content": prompt}],
+        **structured_options(MCQQuestion),
+    )
+    final_pair = MCQQuestion.model_validate_json(response_text(question_answer_pair, "OpenRouter did not return the question model."))
     if len(topics) > 1:
         final_pair.difficulty = "hard"
 
@@ -310,7 +261,7 @@ async def generate_mcq_test(
         document_id: str,
         notebook_id: str,
         number_of_questions: int,
-        model: str = settings.gemini_model
+        model: str = settings.openrouter_study_model
 ) -> list[MCQQuestion]:
     if number_of_questions < 0:
         raise HereshkoError("Number of questions cannot be negative.")
@@ -354,7 +305,7 @@ async def generate_subjective_test(
     document_id: str,
     notebook_id: str,
     number_of_questions: int,
-    model: str = settings.gemini_model,
+    model: str = settings.openrouter_study_model,
 ) -> list[tuple[Question, str]]:
     if not 1 <= number_of_questions <= 3:
         raise HereshkoError("Subjective tests must contain between 1 and 3 questions.")

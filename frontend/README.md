@@ -64,7 +64,7 @@ Generation displays three animated dots and “Generating your test. This may ta
 a while.” The result heading is “Nicely understood.” when every answer is correct
 and “Needs improvement.” otherwise.
 
-Browser checks use fixture responses without calling Gemini:
+Browser checks use fixture responses without calling OpenRouter:
 
 ```powershell
 .venv/Scripts/python.exe -m tests.test_testweaver_frontend

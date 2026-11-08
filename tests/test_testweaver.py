@@ -28,6 +28,8 @@ TOPICS = {"topics": [{
 
 class TopicGenerationTests(unittest.TestCase):
     def setUp(self):
+        generator.topic_cache.clear()
+        self.addCleanup(generator.topic_cache.clear)
         self.document = Document(
             document_id="doc-1", notebook_id="nb-1", title="Biology",
             content="Plants convert light energy into chemical energy using chlorophyll.",
@@ -37,28 +39,19 @@ class TopicGenerationTests(unittest.TestCase):
 
     def generate(self, text):
         client = Mock()
-        source_file = SimpleNamespace(name="files/topic-source")
-        client.files.upload.return_value = source_file
-        client.models.generate_content.return_value = SimpleNamespace(text=text)
+        client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
         with patch.object(generator, "load_document", return_value=self.document) as load, \
-             patch.object(generator.genai, "Client", return_value=client):
+             patch.object(generator, "openrouter_client", client):
             result = generator.generate_topics("doc-1")
         load.assert_called_once_with(document_id="doc-1")
-        upload = client.files.upload.call_args.kwargs
-        self.assertEqual(upload["file"].getvalue(), self.document.content.encode("utf-8"))
-        self.assertEqual(upload["config"], {"mime_type": "text/plain", "display_name": self.document.title})
-        client.files.delete.assert_called_once_with(name="files/topic-source")
-        client.close.assert_called_once()
-        return result, client.models.generate_content.call_args.kwargs
+        return result, client.chat.completions.create.call_args.kwargs
 
-    def test_uses_uploaded_source_and_structured_topic_schema(self):
+    def test_uses_source_text_and_structured_topic_schema(self):
         result, arguments = self.generate(json.dumps(TOPICS))
         self.assertEqual(result, TOPICS)
-        self.assertEqual(arguments["contents"][0].name, "files/topic-source")
-        self.assertIn("attached source file", arguments["contents"][1])
-        self.assertIn("no fixed count", arguments["contents"][1])
-        self.assertEqual(arguments["config"].response_mime_type, "application/json")
-        self.assertIs(arguments["config"].response_schema, TopicSet)
+        self.assertEqual(arguments["messages"][1]["content"], self.document.content)
+        self.assertIn("no fixed count", arguments["messages"][0]["content"])
+        self.assertEqual(arguments["response_format"]["json_schema"]["schema"], TopicSet.model_json_schema())
 
     def test_accepts_content_driven_topic_count(self):
         topics = {"topics": [TOPICS["topics"][0], {
@@ -79,64 +72,61 @@ class TopicGenerationTests(unittest.TestCase):
             with self.subTest(text=text), self.assertRaises(ValidationError):
                 self.generate(text)
 
-    def test_empty_source_never_calls_gemini(self):
+    def test_empty_source_never_calls_openrouter(self):
         self.document.content = " "
         with patch.object(generator, "load_document", return_value=self.document), \
-             patch.object(generator.genai, "Client") as client:
+             patch.object(generator, "openrouter_client") as client:
             with self.assertRaisesRegex(HereshkoError, "no extracted text"):
                 generator.generate_topics("doc-1")
-            client.assert_not_called()
+            client.chat.completions.create.assert_not_called()
 
 
 class QuestionGenerationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.topic = Topic.model_validate(TOPICS["topics"][0])
         self.question = Question(question_id="q-1", question="Explain photosynthesis.", difficulty="medium")
-        self.client = MagicMock()
-        self.async_client = self.client.aio.__aenter__.return_value
-        self.async_client.models.generate_content = AsyncMock(
-            return_value=SimpleNamespace(text=self.question.model_dump_json())
+        generator.topic_cache.clear()
+        self.addCleanup(generator.topic_cache.clear)
+        self.client = Mock()
+        self.client.chat.completions.create = AsyncMock(
+            return_value=SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self.question.model_dump_json()))])
         )
 
-    async def test_topics_then_question_use_separate_clients_and_await_answer(self):
+    async def test_topics_then_question_use_clients_and_await_answer(self):
         sync_client = Mock()
-        sync_client.models.generate_content.return_value = SimpleNamespace(text=json.dumps(TOPICS))
+        sync_client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(TOPICS)))])
         document = Mock(content="Source content")
         document.model_dump_json.return_value = '{"content": "Source content"}'
         service = Mock()
-        with patch.object(generator.genai, "Client", side_effect=[sync_client, self.client]) as create, \
+        with patch.object(generator, "openrouter_client", sync_client), \
+             patch.object(generator, "async_openrouter_client", self.client), \
              patch.object(generator, "load_document", return_value=document), \
              patch.object(generator, "get_weaviate_service", return_value=service), \
              patch.object(generator, "answer_l1", new_callable=AsyncMock,
                           return_value=ChatResponse(answer="Expected answer", sources=[])) as answer:
             self.assertEqual(generator.generate_topics("doc-1"), TOPICS)
-            result = await generator.subjective_generate_question_and_answer(self.topic, "nb-1")
+            result = await generator.subjective_generate_question_and_answer([self.topic], "nb-1")
         self.assertEqual(result, (self.question, "Expected answer"))
-        self.assertEqual(create.call_count, 2)
-        sync_client.close.assert_called_once()
-        self.async_client.models.generate_content.assert_awaited_once()
-        self.client.aio.__aexit__.assert_awaited_once()
-        self.client.models.generate_content.assert_not_called()
+        sync_client.chat.completions.create.assert_called_once()
+        self.client.chat.completions.create.assert_awaited_once()
         answer.assert_awaited_once()
         self.assertEqual(answer.call_args.kwargs["request"].notebook_id, "nb-1")
         self.assertIs(answer.call_args.kwargs["weaviate_service"], service)
 
-    async def test_async_client_is_closed_on_gemini_failure(self):
-        self.async_client.models.generate_content.side_effect = RequestError("offline")
-        with patch.object(generator.genai, "Client", return_value=self.client), \
+    async def test_failure_does_not_call_retrieval(self):
+        self.client.chat.completions.create.side_effect = RequestError("offline")
+        with patch.object(generator, "async_openrouter_client", self.client), \
              patch.object(generator, "answer_l1", new_callable=AsyncMock) as answer:
             with self.assertRaises(RequestError):
-                await generator.subjective_generate_question_and_answer(self.topic, "nb-1")
-        self.client.aio.__aexit__.assert_awaited_once()
+                await generator.subjective_generate_question_and_answer([self.topic], "nb-1")
         answer.assert_not_awaited()
 
     async def test_missing_question_never_calls_l1(self):
-        self.async_client.models.generate_content.return_value = SimpleNamespace(text=None)
-        with patch.object(generator.genai, "Client", return_value=self.client), \
+        self.client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=None))])
+        with patch.object(generator, "async_openrouter_client", self.client), \
              patch.object(generator, "answer_l1", new_callable=AsyncMock) as answer:
             with self.assertRaisesRegex(HereshkoError, "no questions"):
-                await generator.subjective_generate_question_and_answer(self.topic, "nb-1")
-        self.client.aio.__aexit__.assert_awaited_once()
+                await generator.subjective_generate_question_and_answer([self.topic], "nb-1")
         answer.assert_not_awaited()
 
 
@@ -145,7 +135,7 @@ class TestGenerationTests(unittest.IsolatedAsyncioTestCase):
         question = MCQQuestion(
             question_id="repeated-llm-id", question="What absorbs light?", difficulty="easy",
             options=["Chlorophyll", "Starch", "Glucose", "Cellulose"],
-            correct_option=0, explanation="Chlorophyll absorbs light.",
+            correct_option="Chlorophyll", explanation="Chlorophyll absorbs light.",
         )
         with patch.object(generator, "generate_topics", return_value=TOPICS) as topics, \
              patch.object(generator, "objective_generate_question_and_answer", new_callable=AsyncMock,
@@ -154,12 +144,12 @@ class TestGenerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(questions), 4)
         self.assertEqual(len({item.question_id for item in questions}), 4)
         self.assertTrue(all(UUID(item.question_id).version == 4 for item in questions))
-        self.assertTrue(all(item.correct_option == 0 and item.explanation == question.explanation for item in questions))
+        self.assertTrue(all(item.correct_option == "Chlorophyll" and item.explanation == question.explanation for item in questions))
         self.assertEqual(question.question_id, "repeated-llm-id")
         topics.assert_called_once_with(document_id="doc-1", model="test-model")
         self.assertEqual(generate.await_count, 4)
         for call in generate.call_args_list:
-            self.assertEqual(call.kwargs["topic"].id, "topic-1")
+            self.assertEqual([topic.id for topic in call.kwargs["topics"]], ["topic-1"])
             self.assertEqual(call.kwargs["notebook_id"], "nb-1")
             self.assertEqual(call.kwargs["model"], "test-model")
 
@@ -178,7 +168,7 @@ class TestGenerationTests(unittest.IsolatedAsyncioTestCase):
         topics.assert_called_once_with(document_id="doc-1", model="test-model")
         self.assertEqual(generate.await_count, 3)
         for call in generate.call_args_list:
-            self.assertEqual(call.kwargs["topic"].id, "topic-1")
+            self.assertEqual([topic.id for topic in call.kwargs["topics"]], ["topic-1"])
             self.assertEqual(call.kwargs["notebook_id"], "nb-1")
             self.assertEqual(call.kwargs["model"], "test-model")
 

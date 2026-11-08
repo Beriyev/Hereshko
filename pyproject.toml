@@ -20,6 +20,7 @@ dependencies = [
     "langchain-google-genai>=4.3.3",
     "langchain-text-splitters>=1.1.2",
     "mcp[cli]>=2.2.0",
+    "openai>=1.0.0",
     "pdfplumber>=0.11.10",
     "playwright>=1.62.0",
     "pydantic>=2.13.4",

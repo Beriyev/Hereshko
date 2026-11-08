@@ -4,7 +4,7 @@ from typing import Any
 
 from mcp import Client
 
-from app.clients.groq_client import async_groq_client
+from app.clients.openrouter_client import async_openrouter_client
 from app.clients.mcp_client import call_tool, get_tool_specs, result_text
 from app.config import settings
 from app.core.chunking import Chunk
@@ -84,12 +84,13 @@ async def gather_web_sources(
         tool_specs = await get_tool_specs(client=client)
 
         for _ in range(settings.web_tool_max_iterations):
-            completion = await async_groq_client.chat.completions.create(
+            completion = await async_openrouter_client.chat.completions.create(
                 messages=messages,
-                model=settings.groq_llm_model,
+                model=settings.openrouter_chat_model,
                 tools=tool_specs,
                 tool_choice="required" if force_web or (not context_chunks and not by_url) else "auto",
                 max_tokens=500,
+                extra_body={"provider": {"require_parameters": True}},
             )
 
             message = completion.choices[0].message

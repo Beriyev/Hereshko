@@ -41,7 +41,7 @@ Table support here is **answer rendering**. The ingestion pipeline does not yet 
 
 ### GraphWeaver mind maps
 
-GraphWeaver uses Gemini to turn a selected notebook source into a mind map of its central topic, main themes, and subtopics. It reads the complete persisted extraction and requests structured output matching the Pydantic `MindMap` schema.
+GraphWeaver uses the configured OpenRouter study model to turn a selected notebook source into a mind map of its central topic, main themes, and subtopics. It reads the complete persisted extraction and requests structured output matching the Pydantic `MindMap` schema.
 
 - Open **Graphweaver** in the notebook workspace, choose a source, and click **Generate map**.
 - Explore a top-down map with main themes in a row and subtopics stacked in compact columns below them.
@@ -56,7 +56,7 @@ Map generation currently uses one source at a time. Sources added before extract
 
 ## TestWeaver practice
 
-TestWeaver supports objective MCQ tests and subjective written tests. Gemini extracts detailed topics from the selected source, including summaries and key points, and is prompted to place related topics next to one another. Topic JSON is cached in backend memory by source and model and reused across tests. Expected subjective answers use the notebook's existing L1 retrieval pipeline, with numbered citation markers removed before returning them.
+TestWeaver supports objective MCQ tests and subjective written tests. The OpenRouter study model extracts detailed topics from the selected source, including summaries and key points, and is prompted to place related topics next to one another. Topic JSON is cached in backend memory by source and model and reused across tests. Expected subjective answers use the notebook's existing L1 retrieval pipeline, with numbered citation markers removed before returning them.
 
 Each question uses the following selection process:
 
@@ -66,7 +66,7 @@ Each question uses the following selection process:
 - Both question generators receive a JSON array of the selected topics. Questions using multiple topics are prompted and classified as hard. Single-topic questions are classified by reasoning: easy for basic recall or explanation, medium for relationships or comparisons, and hard for synthesis or multiple reasoning steps.
 - Question scope and answer or explanation depth are prompted to match the supplied content and cover each selected topic meaningfully.
 
-A shared `spent_questions` list holds the 10 most recent successfully generated question texts across both modes and all sources. Each question prompt includes this list and asks Gemini to avoid identical or similar questions. This reduces repetition but does not guarantee uniqueness. Topic ordering by similarity is also a prompt instruction, rather than a validated grouping.
+A shared `spent_questions` list holds the 10 most recent successfully generated question texts across both modes and all sources. Each question prompt includes this list and asks the model to avoid identical or similar questions. This reduces repetition but does not guarantee uniqueness. Topic ordering by similarity is also a prompt instruction, rather than a validated grouping.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
@@ -119,13 +119,13 @@ flowchart TB
     subgraph chat["L1 / L2 chat"]
         query["Embed query"] --> retrieve["Hybrid retrieval"]
         retrieve --> rank["Reranker and MMR"]
-        rank --> answer["Groq · cited answers"]
+        rank --> answer["OpenRouter · cited answers"]
         research["Optional MCP web research\nDuckDuckGo and page scraping"] --> answer
     end
 
     subgraph studio["Studio"]
-        graphweaver["GraphWeaver · Gemini mind maps"]
-        tests["TestWeaver · Gemini topics and questions"]
+        graphweaver["GraphWeaver · OpenRouter mind maps"]
+        tests["TestWeaver · OpenRouter topics and questions"]
     end
 
     api --> extract
@@ -151,7 +151,7 @@ flowchart TB
 ```mermaid
 flowchart TD
     source["Selected source"] --> cache{"Topics cached?"}
-    cache -- "No" --> extract["Gemini · detailed ordered topics"]
+    cache -- "No" --> extract["OpenRouter · detailed ordered topics"]
     extract --> topics["Topic JSON · backend memory"]
     cache -- "Yes" --> topics
     topics --> roll{"Roll 1–10"}
@@ -160,12 +160,12 @@ flowchart TD
     single --> prompt["Question prompt · topics array"]
     multiple --> prompt
     history["Last 10 spent questions"] --> prompt
-    prompt --> question["Gemini · objective or subjective question\nMultiple topics classified as hard"]
+    prompt --> question["OpenRouter · objective or subjective question\nMultiple topics classified as hard"]
     question -- "Append question; keep last 10" --> history
     question --> objective["MCQ options, correct option, explanation"]
     question --> subjective["L1 · expected written answer"]
     objective --> choices["Compare submitted option text"]
-    subjective --> grading["Gemini · compare written answer"]
+    subjective --> grading["OpenRouter · compare written answer"]
     choices --> results["Results · correctness and score out of 10\nExplanation or improvement points"]
     grading --> results
 ```
@@ -184,12 +184,12 @@ flowchart TD
 | Diversity selection | Maximum marginal relevance (MMR), `lambda=0.75` |
 | L1 context | Up to 10 chunks from 20 candidates, or 24 candidates when the notebook has more than 5 sources |
 | L2 subanswer context | Up to 10 chunks from 20 candidates per subquestion |
-| Answer model | Groq model configured by `GROQ_LLM_MODEL`; current default is `qwen/qwen3.8-27b` |
+| Answer model | OpenRouter model configured by `OPENROUTER_CHAT_MODEL`; current default is `qwen/qwen3.8-27b` |
 | Transcription model | `whisper-large-v3-turbo` through Groq |
 
 Extraction boundaries preserve source positions while chunking. Embedding inputs include the source title, source type, and chunk text. Source records are saved after their chunks have been inserted into Weaviate.
 
-Before chunking and indexing, each extracted `Document` is saved as JSON under `data/persist/<document_id>/document.json`. GraphWeaver loads this file, sends its content to Gemini, and returns a flat list of nodes with IDs, parent IDs, titles, and summaries. The frontend assembles the tree from those parent links; the root has `parent_id: null`.
+Before chunking and indexing, each extracted `Document` is saved as JSON under `data/persist/<document_id>/document.json`. GraphWeaver loads this file, sends its content to OpenRouter, and returns a flat list of nodes with IDs, parent IDs, titles, and summaries. The frontend assembles the tree from those parent links; the root has `parent_id: null`.
 
 ### Storage and session lifetime
 
@@ -210,8 +210,8 @@ The bundled launcher targets Windows and PowerShell. Python dependencies are def
 
 - Python 3.11 for the project environment and `uv` for dependency management.
 - Docker Desktop with Docker Compose.
-- A Groq API key for chat, notebook overviews, and YouTube transcription.
-- A Gemini studio API key for GraphWeaver mind maps and TestWeaver topic generation, question generation, and subjective grading.
+- A Groq API key for YouTube transcription.
+- An OpenRouter API key for chat, notebook overviews, GraphWeaver, and TestWeaver.
 - An NVIDIA GPU with working Docker GPU support for the bundled reranker configuration. Compose requests all GPUs and enables CUDA for that service.
 - LibreOffice for PPTX ingestion.
 - FFmpeg and Deno for the YouTube ingestion path, available on `PATH` or through the supported Deno configuration.
@@ -226,15 +226,15 @@ Create or edit `.env` in the repository root. A minimal configuration is:
 
 ```dotenv
 GROQ_API_KEY=your_groq_api_key
-GEMINI_STUDIO_API_KEY=your_gemini_studio_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 Useful optional settings and their current defaults:
 
 ```dotenv
-GROQ_LLM_MODEL=qwen/qwen3.8-27b
+OPENROUTER_CHAT_MODEL=qwen/qwen3.8-27b
 GROQ_WHISPER_MODEL=whisper-large-v3-turbo
-GEMINI_MODEL=gemini-3.5-flash-lite
+OPENROUTER_STUDY_MODEL=google/gemini-3.5-flash-lite
 EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
 EMBEDDING_DEVICE=cuda
 EMBEDDING_BATCH_SIZE=8
@@ -353,7 +353,7 @@ Example mind-map request body:
 }
 ```
 
-The document must belong to the notebook in the URL. The response is `{"nodes": [...]}`, with each node containing `id`, `parent_id`, `title`, and `summary`. Missing persisted content returns HTTP 409; Gemini quota limits return 429, temporary unavailability returns 503, and timeouts return 504. Other generation errors include a readable `detail` message for the frontend.
+The document must belong to the notebook in the URL. The response is `{"nodes": [...]}`, with each node containing `id`, `parent_id`, `title`, and `summary`. Missing persisted content returns HTTP 409; OpenRouter quota limits return 429, temporary unavailability returns 503, and timeouts return 504. Other generation errors include a readable `detail` message for the frontend.
 
 Example L1 request:
 
@@ -376,7 +376,7 @@ The MCP service exposes `web_search` through DuckDuckGo and `scrape_page` throug
 ```text
 app/
   api/                 Chat, ingestion, notebook, and GraphWeaver routes
-  clients/             Groq, Weaviate, and MCP connections
+  clients/             OpenRouter, Groq, Weaviate, and MCP connections
   core/                Documents, chunks, notebooks, conversations, errors
   schemas/             API request and response models
   services/
@@ -385,7 +385,7 @@ app/
     scraper/           HTTP/browser fetching, extraction, crawling
     search/            DuckDuckGo search
     video/             YouTube audio download and transcription
-    graphweaver/       Gemini mind-map generation from persisted sources
+    graphweaver/       OpenRouter mind-map generation from persisted sources
   storage/             SQLite metadata, extracted document JSON, overview cache
   main.py              FastAPI entry point
   mcp_server.py        MCP web tools entry point
@@ -419,7 +419,7 @@ node tests/test_l2_frontend.cjs
 node tests/test_ingestion_loading.cjs
 ```
 
-GraphWeaver browser checks use Playwright Chromium and fixture API responses, without calling Gemini or changing notebook data:
+GraphWeaver browser checks use Playwright Chromium and fixture API responses, without calling OpenRouter or changing notebook data:
 
 ```powershell
 uv run python -m tests.test_graphweaver_frontend
@@ -444,7 +444,7 @@ uv run python -m tests.benchmark_retrieval_counts
 - L1 returns a complete JSON response; L2 streams progress events, not individual generated tokens.
 - Citation instructions guide model output; they are not an independent factual verification system.
 - GraphWeaver generates a single-source hierarchy. Node summaries do not include individual evidence citations, and sending a prompt to chat uses the existing notebook chat retrieval.
-- GraphWeaver sends the complete extracted source in one Gemini request; very large documents must fit the configured model's input limit. Maps are not persisted across page reloads.
+- GraphWeaver sends the complete extracted source in one OpenRouter request; very large documents must fit the configured model's input limit. Maps are not persisted across page reloads.
 - Noteweaver and authentication scaffolding do not currently expose implemented application features. The app is a local development workspace without account access controls.
 - The provided Compose deployment enables anonymous Weaviate access and is intended for local development.
 
@@ -455,9 +455,9 @@ uv run python -m tests.benchmark_retrieval_counts
 | Launcher stops at the Docker check | Start Docker Desktop and wait for `docker info` to succeed. |
 | Retrieval or indexing cannot connect | Check `docker compose ps` and the Weaviate/reranker logs; confirm HTTP port 8080 and gRPC port 50051 are available. |
 | GPU reranker fails to start | Check Docker GPU support and the NVIDIA driver. A CPU container configuration requires changing Compose explicitly. |
-| Chat or overview generation fails | Check `GROQ_API_KEY`, configured model access, and the backend error output. |
+| Chat or overview generation fails | Check `OPENROUTER_API_KEY`, configured model access, and the backend error output. |
 | GraphWeaver reports no saved extracted content | Upload the file or add the website/video again, then select the new source. Older indexed sources do not have persisted extraction files. |
-| GraphWeaver generation fails | Check `GEMINI_STUDIO_API_KEY` and `GEMINI_MODEL`. For 429, check quota; for 503 or 504, retry later. Restart the backend after configuration changes. |
+| GraphWeaver generation fails | Check `OPENROUTER_API_KEY` and `OPENROUTER_STUDY_MODEL`. For 429, check quota; for 503 or 504, retry later. Restart the backend after configuration changes. |
 | GraphWeaver still shows an older layout | Hard-refresh the frontend with Ctrl + Shift + R, then reopen the map. |
 | Web Search fails | Confirm `app.mcp_server` is running and `MCP_SERVER_URL` points to its `/mcp` endpoint. |
 | PPTX ingestion fails | Check LibreOffice discovery, PaddleOCR dependencies, and CUDA runtime paths; use the Windows launcher. |

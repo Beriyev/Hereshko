@@ -1,15 +1,15 @@
 from app.config import settings
 from app.core.chunking import Chunk
 from app.schemas.chat import Citation, ChatResponse, ChatRequest
-from app.clients.groq_client import groq_client
+from app.clients.openrouter_client import openrouter_client
 from app.core.exceptions import ChatError
-from groq.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam
 from app.core.chat import ChatMessage, ChatRole
 import re
 from typing import cast
 from app.core.notebook import GeneratedOverview
 
-client = groq_client
+client = openrouter_client
 
 CITATION_SYSTEM_PROMPT = """You are Hereshko, an assistant that answers questions using ONLY the numbered sources provided below. You must not use any outside knowledge.
 
@@ -50,7 +50,7 @@ def generate_answer(chat_request: ChatRequest, retrieved_chunks: list[Chunk], hi
     messages_list.append(cast(ChatCompletionMessageParam,{'role':'user','content':chat_request.query}))
 
     chat_completion = client.chat.completions.create(
-        model = settings.groq_llm_model,
+        model = settings.openrouter_chat_model,
         messages=messages_list,
         max_tokens=800,
     )
@@ -125,7 +125,7 @@ Source previews:
 """
 
     completion = client.chat.completions.create(
-        model=settings.groq_llm_model,
+        model=settings.openrouter_chat_model,
         messages=[
             {
                 "role": "system",
@@ -138,6 +138,7 @@ Source previews:
         ],
         max_tokens=500,
         response_format={"type": "json_object"},
+        extra_body={"provider": {"require_parameters": True}},
     )
 
     answer = completion.choices[0].message.content

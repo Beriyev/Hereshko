@@ -1,6 +1,6 @@
 from typing import Any
 
-from groq.types.chat import ChatCompletionToolParam
+from openai.types.chat import ChatCompletionToolParam
 from mcp import Client
 from mcp.types import CallToolResult, TextContent, Tool
 

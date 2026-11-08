@@ -20,12 +20,12 @@ from collections.abc import Awaitable, Callable
 
 from app.storage.database import notebook_summaries
 
-from app.clients.groq_client import groq_client
-from groq.types.chat import ChatCompletionMessageParam
+from app.clients.openrouter_client import openrouter_client
+from openai.types.chat import ChatCompletionMessageParam
 
 import re
 
-client = groq_client
+client = openrouter_client
 
 FIRST_LAYER_PROMPT = """
     You are the query planner for L2, a document-grounded research assistant.
@@ -147,10 +147,11 @@ async def l2_planner(
 
     completion = await asyncio.to_thread(
         client.chat.completions.create,
-        model=settings.groq_llm_model,
+        model=settings.openrouter_chat_model,
         messages=messages_list,
         max_tokens=300,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
+        extra_body={"provider": {"require_parameters": True}},
     )
 
     content = completion.choices[0].message.content
@@ -204,7 +205,7 @@ async def l2_orchestrator(
     )
     completion = await asyncio.to_thread(
         client.chat.completions.create,
-        model=settings.groq_llm_model,
+        model=settings.openrouter_chat_model,
         messages=[
             {
                 "role": "system",

@@ -1,0 +1,31 @@
+"""Clients for OpenRouter's OpenAI-compatible API."""
+
+from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel
+
+from app.config import settings
+from app.core.exceptions import HereshkoError
+
+_options = {
+    # Allow the app to start without a key; requests will fail authentication.
+    "api_key": settings.openrouter_api_key.get_secret_value() or "missing-openrouter-api-key",
+    "base_url": "https://openrouter.ai/api/v1",
+}
+openrouter_client = OpenAI(**_options)
+async_openrouter_client = AsyncOpenAI(**_options)
+
+
+def structured_options(schema: type[BaseModel]) -> dict:
+    return {
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema()},
+        },
+        "extra_body": {"provider": {"require_parameters": True}},
+    }
+
+
+def response_text(response, empty_message: str) -> str:
+    if not response.choices or not response.choices[0].message.content:
+        raise HereshkoError(empty_message)
+    return response.choices[0].message.content

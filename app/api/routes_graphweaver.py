@@ -1,8 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException
-from google.genai.errors import APIError
-from httpx import RequestError
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 from pydantic import ValidationError
 
 from app.core.exceptions import HereshkoError
@@ -41,24 +40,27 @@ async def create_mindmap(notebook_id: str, request: MindMapRequest) -> dict:
             status_code=409,
             detail="This source has no saved extracted content. Upload the file again, or add the website/video again, then select the new source to generate its map.",
         ) from error
-    except APIError as error:
+    except APIStatusError as error:
         messages = {
-            400: "Gemini rejected the request. Check the configured model and document size.",
-            401: "Gemini authentication failed. Check GEMINI_STUDIO_API_KEY on the backend.",
-            403: "Gemini access was denied. Check the API key and model access on the backend.",
-            404: "The configured Gemini model is unavailable. Check GEMINI_MODEL on the backend.",
-            429: "Gemini's rate limit or quota was reached. Try again later or check your API quota.",
-            503: "Gemini is temporarily unavailable or busy. Please try Generate map again in a moment.",
-            504: "Gemini timed out. Please try Generate map again.",
+            400: "OpenRouter rejected the request. Check the configured model and document size.",
+            401: "OpenRouter authentication failed. Check OPENROUTER_API_KEY on the backend.",
+            402: "OpenRouter has insufficient credits. Check the account balance.",
+            403: "OpenRouter access was denied. Check the API key and model access.",
+            404: "The configured OpenRouter model is unavailable. Check OPENROUTER_STUDY_MODEL.",
+            429: "OpenRouter's rate limit or quota was reached. Try again later.",
+            503: "OpenRouter is temporarily unavailable. Try again in a moment.",
+            504: "OpenRouter timed out. Please try again.",
         }
         raise HTTPException(
-            status_code=error.code if error.code in (429, 503, 504) else 502,
-            detail=messages.get(error.code, "Gemini could not generate the map. Please try again."),
+            status_code=error.status_code if error.status_code in (429, 503, 504) else 502,
+            detail=messages.get(error.status_code, "OpenRouter could not generate the map. Please try again."),
         ) from error
-    except RequestError as error:
+    except APITimeoutError as error:
+        raise HTTPException(status_code=504, detail="OpenRouter timed out. Please try again.") from error
+    except APIConnectionError as error:
         raise HTTPException(
             status_code=503,
-            detail="Could not connect to Gemini. Check the backend's internet connection and try again.",
+            detail="Could not connect to OpenRouter. Check the backend's internet connection and try again.",
         ) from error
     except ValidationError as error:
         raise HTTPException(

@@ -11,9 +11,9 @@ class Settings(BaseSettings):
 
     groq_api_key: str = ""
     groq_whisper_model: str = "whisper-large-v3-turbo"
-    groq_llm_model: str = "qwen/qwen3.8-27b"
-
-    gemini_studio_api_key: SecretStr = SecretStr("")
+    openrouter_api_key: SecretStr = SecretStr("")
+    openrouter_chat_model: str = "qwen/qwen3.8-27b"
+    openrouter_study_model: str = "google/gemini-3.5-flash-lite"
 
     yt_player_client: str = ""
     yt_js_runtime: str = "deno"
@@ -33,7 +33,5 @@ class Settings(BaseSettings):
 
     mcp_server_url: str = "http://127.0.0.1:8765/mcp"
     web_tool_max_iterations: int = 2
-
-    gemini_model: str = "gemini-3.5-flash-lite"
 
 settings = Settings()
