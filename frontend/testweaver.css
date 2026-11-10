@@ -22,7 +22,7 @@
   overflow: hidden;
 }
 .testweaver-dialog[open] { display: flex; flex-direction: column; animation: tw-open .32s cubic-bezier(.2,.8,.2,1) both; }
-.testweaver-dialog::backdrop { background: rgba(2,3,4,.78); animation: tw-fade .25s ease both; }
+.testweaver-dialog::backdrop { background: rgba(2,3,4,.78); backdrop-filter: blur(14px); animation: tw-fade .25s ease both; }
 .testweaver-dialog.tw-closing { animation: tw-close .18s ease both; }
 .testweaver-dialog.tw-closing::backdrop { animation: tw-fade .18s ease reverse both; }
 .testweaver-dialog [hidden] { display: none !important; }

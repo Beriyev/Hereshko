@@ -8,7 +8,7 @@ body.notebook-library { overflow: auto; }
 .library-intro h1 > span:not(.intro-letter) { color: var(--muted); }
 .intro-letter { visibility: hidden; }
 .intro-letter.is-visible { visibility: visible; animation: introLetter 120ms ease-out both; }
-@keyframes introLetter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes introLetter { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
 .library-intro p { color: var(--muted); font-size: 13px; line-height: 1.7; max-width: 370px; }
 .library-action { display: inline-flex; justify-content: center; align-items: center; gap: 9px; border: 1px solid #eee; border-radius: 11px; padding: 13px 18px; color: #111; background: #eee; cursor: pointer; font-size: 12px; font-weight: 650; white-space: nowrap; transition: transform 180ms, background 180ms; }
 .library-action:hover:not(:disabled) { transform: translateY(-2px); background: #fff; }
@@ -47,7 +47,7 @@ body.notebook-library { overflow: auto; }
 .library-footer { margin-top: 64px; color: var(--muted-2); text-align: center; font-size: 10px; }
 .notebook-dialog { width: min(440px, calc(100vw - 32px)); padding: 32px; border: 1px solid var(--line-strong); border-radius: 20px; color: var(--text); background: var(--surface); box-shadow: none; }
 .notebook-dialog[open] { animation: libraryEnter 240ms ease-out both; }
-.notebook-dialog::backdrop { background: rgba(0,0,0,.72); }
+.notebook-dialog::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(8px); }
 .notebook-dialog h2 { font-family: Georgia, serif; font-weight: 400; font-size: 32px; margin: 14px 0; }
 .notebook-dialog p { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .notebook-dialog label { display: block; margin: 24px 0 9px; color: var(--muted); font-size: 11px; }

@@ -65,27 +65,6 @@ svg {
   stroke-linejoin: round;
 }
 
-.ambient {
-  display: none;
-}
-
-.ambient-one {
-  width: 460px;
-  height: 460px;
-  top: -260px;
-  left: 30%;
-  background: var(--accent);
-}
-
-.ambient-two {
-  width: 400px;
-  height: 400px;
-  right: -230px;
-  bottom: -190px;
-  background: var(--purple);
-  animation-delay: -8s;
-}
-
 .app-shell {
   position: relative;
   height: 100vh;
@@ -99,7 +78,8 @@ svg {
   grid-template-columns: 292px minmax(320px, 1fr) 322px;
   align-items: center;
   border-bottom: 1px solid var(--line);
-  background: var(--bg);
+  background: rgba(8, 9, 10, 0.78);
+  backdrop-filter: blur(24px);
   position: relative;
   z-index: 10;
 }
@@ -260,7 +240,8 @@ svg {
 }
 
 .panel {
-  background: var(--bg);
+  background: rgba(11, 12, 14, 0.64);
+  backdrop-filter: blur(18px);
   padding: 22px 18px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -626,6 +607,9 @@ svg {
 }
 
 .source-preview-heading button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
   width: 22px;
   height: 22px;
   padding: 0;
@@ -634,6 +618,11 @@ svg {
   color: var(--muted);
   background: transparent;
   cursor: pointer;
+}
+
+.source-preview-heading button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .source-preview-heading button:hover {
@@ -804,6 +793,20 @@ svg {
   position: relative;
   min-width: 0;
   overflow: hidden;
+}
+
+.center-stage::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 150px;
+  background: linear-gradient(transparent, rgba(8, 9, 10, 0.8));
+  backdrop-filter: blur(12px);
+  mask-image: linear-gradient(transparent, #000 65%);
+  pointer-events: none;
 }
 
 .center-scroll {
@@ -1261,8 +1264,9 @@ svg {
   padding: 9px 9px 9px 11px;
   border: 1px solid var(--line-strong);
   border-radius: 18px;
-  background: var(--surface-2);
-  box-shadow: none;
+  background: rgba(18, 20, 23, 0.92);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.43);
   transition: 180ms ease;
 }
 
@@ -1716,6 +1720,7 @@ svg {
   visibility: hidden;
   opacity: 0;
   background: rgba(2, 3, 4, 0.76);
+  backdrop-filter: blur(14px);
   transition: opacity 250ms ease, visibility 250ms;
 }
 
@@ -1783,7 +1788,8 @@ svg {
   margin-bottom: 9px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--surface);
+  background: rgba(12, 14, 16, 0.88);
+  backdrop-filter: blur(16px);
 }
 
 .map-topic-input {
@@ -2209,10 +2215,6 @@ svg {
   animation: summaryRefresh 700ms ease;
 }
 
-@keyframes drift {
-  to { transform: translate(80px, 40px) scale(1.1); }
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 0.55; transform: scale(0.85); }
   50% { opacity: 1; transform: scale(1.15); }
@@ -2630,15 +2632,13 @@ label:focus-within {
 /* Match the notebook library's quiet, solid surfaces throughout the workspace. */
 .youtube-box,
 .source-card,
-.source-preview,
 .summary-meta > *,
 .l2-research,
 .message-bubble,
 .tool-card,
 .research-card,
 .activity-card,
-.concept-panel,
-.toast {
+.concept-panel {
   background: var(--surface);
   box-shadow: none;
 }
@@ -2677,4 +2677,5 @@ label:focus-within {
 .source-preview,
 .toast {
   border: 1px solid var(--line-strong);
+  backdrop-filter: blur(18px);
 }

@@ -32,11 +32,11 @@ class OpenRouterTests(unittest.TestCase):
         body = json.loads(requests[0].content)
         self.assertEqual(body["response_format"]["json_schema"]["schema"], MindMap.model_json_schema())
         self.assertTrue(body["provider"]["require_parameters"])
-        self.assertEqual(body["provider"]["quantizations"], ["fp8"])
+        self.assertEqual(body["provider"]["quantizations"], ["fp4", "mxfp4", "nvfp4", "fp8", "mxfp8"])
         self.assertEqual(body["reasoning"], {"enabled": False})
 
-    def test_fp8_filter_is_specific_to_deepseek(self):
-        self.assertEqual(openrouter_extra_body(model="deepseek/test")["provider"], {"quantizations": ["fp8"]})
+    def test_quantization_filter_is_specific_to_deepseek(self):
+        self.assertEqual(openrouter_extra_body(model="deepseek/test")["provider"], {"quantizations": ["fp4", "mxfp4", "nvfp4", "fp8", "mxfp8"]})
         self.assertNotIn("provider", openrouter_extra_body(model="test/model"))
 
     def test_mindmap_sends_source_and_validates_response(self):

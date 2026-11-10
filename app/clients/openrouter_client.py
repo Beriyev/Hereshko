@@ -19,7 +19,7 @@ def openrouter_extra_body(*, model: str, require_parameters: bool = False) -> di
     body = {"reasoning": {"enabled": False}}
     provider = {}
     if model.lower().startswith("deepseek/"):
-        provider["quantizations"] = ["fp8"]
+        provider["quantizations"] = ["fp4", "mxfp4", "nvfp4", "fp8", "mxfp8"]
     if require_parameters:
         provider["require_parameters"] = True
     if provider:
