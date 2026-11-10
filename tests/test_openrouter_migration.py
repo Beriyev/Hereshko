@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 from openai import OpenAI
 
-from app.clients.openrouter_client import structured_options
+from app.clients.openrouter_client import openrouter_extra_body, structured_options
 from app.schemas.graphweaver import MindMap
 from app.schemas.testweaver import MCQQuestion, Question, Result, Topic, TopicSet
 from app.core.exceptions import HereshkoError
@@ -27,11 +27,17 @@ class OpenRouterTests(unittest.TestCase):
             return httpx.Response(200, json={"choices": [{"index": 0, "message": {"role": "assistant", "content": "{}"}, "finish_reason": "stop"}]})
 
         with OpenAI(api_key="test", base_url="https://openrouter.ai/api/v1", http_client=httpx.Client(transport=httpx.MockTransport(respond))) as client:
-            client.chat.completions.create(model="test/model", messages=[{"role": "user", "content": "test"}], **structured_options(MindMap))
+            client.chat.completions.create(model="deepseek/test:nitro", messages=[{"role": "user", "content": "test"}], **structured_options(MindMap, model="deepseek/test:nitro"))
         self.assertEqual(str(requests[0].url), "https://openrouter.ai/api/v1/chat/completions")
         body = json.loads(requests[0].content)
         self.assertEqual(body["response_format"]["json_schema"]["schema"], MindMap.model_json_schema())
         self.assertTrue(body["provider"]["require_parameters"])
+        self.assertEqual(body["provider"]["quantizations"], ["fp8"])
+        self.assertEqual(body["reasoning"], {"enabled": False})
+
+    def test_fp8_filter_is_specific_to_deepseek(self):
+        self.assertEqual(openrouter_extra_body(model="deepseek/test")["provider"], {"quantizations": ["fp8"]})
+        self.assertNotIn("provider", openrouter_extra_body(model="test/model"))
 
     def test_mindmap_sends_source_and_validates_response(self):
         data = {"nodes": [{"id": "root", "parent_id": None, "title": "Topic", "summary": "Summary"}]}

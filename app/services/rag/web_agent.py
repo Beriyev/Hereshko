@@ -4,7 +4,7 @@ from typing import Any
 
 from mcp import Client
 
-from app.clients.openrouter_client import async_openrouter_client
+from app.clients.openrouter_client import async_openrouter_client, openrouter_extra_body
 from app.clients.mcp_client import call_tool, get_tool_specs, result_text
 from app.config import settings
 from app.core.chunking import Chunk
@@ -90,7 +90,7 @@ async def gather_web_sources(
                 tools=tool_specs,
                 tool_choice="required" if force_web or (not context_chunks and not by_url) else "auto",
                 max_tokens=500,
-                extra_body={"provider": {"require_parameters": True}},
+                extra_body=openrouter_extra_body(model=settings.openrouter_chat_model, require_parameters=True),
             )
 
             message = completion.choices[0].message

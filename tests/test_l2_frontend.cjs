@@ -20,8 +20,7 @@ const source = fs.readFileSync("frontend/app.js", "utf8");
 const functions = source.slice(source.indexOf("function createL2Panel("), source.indexOf("async function submitPrompt("));
 const context = vm.createContext({
   document: { createElement: (tag) => new Element(tag) },
-  renderFormattedText: (element, text) => { element.textContent = text; },
-  addCitationCards: (element, sources) => { element.sources = sources; },
+  renderFormattedText: (element, text, sources) => { element.textContent = text; element.sources = sources; },
   scrollToLatest() {},
   window: { matchMedia: () => ({ matches: false }) },
   streamText: async (element, text) => { element.textContent = text; },
@@ -40,7 +39,7 @@ const research = row.children[0];
 const first = research.children[1].children[0];
 assert.equal(first.children[0].children[1].textContent, "Answered");
 assert.equal(first.children[1].textContent, "Answer [1]");
-assert.equal(first.sources[0].marker, 1);
+assert.equal(first.children[1].sources[0].marker, 1);
 await panel.update({ type: "done" });
 assert.equal(research.open, false);
 }

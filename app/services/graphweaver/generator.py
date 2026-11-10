@@ -41,7 +41,7 @@ def generate_mindmap(document_id: str) -> dict:
             {"role": "system", "content": prompt},
             {"role": "user", "content": document.content},
         ],
-        **structured_options(MindMap),
+        **structured_options(MindMap, model=settings.openrouter_study_model),
     )
     mindmap = MindMap.model_validate_json(response_text(response, "OpenRouter returned no map content."))
     return mindmap.model_dump()

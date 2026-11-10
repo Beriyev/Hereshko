@@ -15,13 +15,25 @@ openrouter_client = OpenAI(**_options)
 async_openrouter_client = AsyncOpenAI(**_options)
 
 
-def structured_options(schema: type[BaseModel]) -> dict:
+def openrouter_extra_body(*, model: str, require_parameters: bool = False) -> dict:
+    body = {"reasoning": {"enabled": False}}
+    provider = {}
+    if model.lower().startswith("deepseek/"):
+        provider["quantizations"] = ["fp8"]
+    if require_parameters:
+        provider["require_parameters"] = True
+    if provider:
+        body["provider"] = provider
+    return body
+
+
+def structured_options(schema: type[BaseModel], *, model: str) -> dict:
     return {
         "response_format": {
             "type": "json_schema",
             "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema()},
         },
-        "extra_body": {"provider": {"require_parameters": True}},
+        "extra_body": openrouter_extra_body(model=model, require_parameters=True),
     }
 
 

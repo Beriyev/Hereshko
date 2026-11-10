@@ -56,7 +56,7 @@ def generate_topics(
     response = openrouter_client.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": prompt}, {"role": "user", "content": document.content}],
-        **structured_options(TopicSet),
+        **structured_options(TopicSet, model=model),
     )
     topics = TopicSet.model_validate_json(response_text(response, "OpenRouter returned no topic content."))
     topic_cache[(document_id, model)] = topics.model_dump()
@@ -113,7 +113,7 @@ async def subjective_generate_question_and_answer(topics: list[Topic], notebook_
 
     question = await async_openrouter_client.chat.completions.create(
         model=model, messages=[{"role": "user", "content": question_prompt}],
-        **structured_options(Question),
+        **structured_options(Question, model=model),
     )
     question_module = Question.model_validate_json(response_text(question, "OpenRouter returned no questions."))
     if len(topics) > 1:
@@ -180,7 +180,7 @@ async def subjective_compare_answers(question: str, expected_answer: str, provid
     """
     result = await async_openrouter_client.chat.completions.create(
         model=model, messages=[{"role": "user", "content": prompt}],
-        **structured_options(Result),
+        **structured_options(Result, model=model),
     )
     return_result = Result.model_validate_json(response_text(result, "OpenRouter returned no answer check."))
 
@@ -246,7 +246,7 @@ async def objective_generate_question_and_answer(topics: list[Topic], notebook_i
 
     question_answer_pair = await async_openrouter_client.chat.completions.create(
         model=model, messages=[{"role": "user", "content": prompt}],
-        **structured_options(MCQQuestion),
+        **structured_options(MCQQuestion, model=model),
     )
     final_pair = MCQQuestion.model_validate_json(response_text(question_answer_pair, "OpenRouter did not return the question model."))
     if len(topics) > 1:

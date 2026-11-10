@@ -243,6 +243,8 @@ WEB_TOOL_MAX_ITERATIONS=2
 YT_JS_RUNTIME=deno
 ```
 
+DeepSeek requests through OpenRouter are restricted to providers listed with FP8 quantization (including MXFP8). If no matching provider supports the request, OpenRouter returns an error rather than falling back to a different precision. Provider labels describe the hosted endpoint; the application does not quantize model weights locally.
+
 Restart the backend after changing settings. The current Weaviate client uses `connect_to_local()`; changing `WEAVIATE_URL` alone does not redirect that connection.
 
 ### Install dependencies

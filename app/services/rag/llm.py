@@ -1,7 +1,7 @@
 from app.config import settings
 from app.core.chunking import Chunk
 from app.schemas.chat import Citation, ChatResponse, ChatRequest
-from app.clients.openrouter_client import openrouter_client
+from app.clients.openrouter_client import openrouter_client, openrouter_extra_body
 from app.core.exceptions import ChatError
 from openai.types.chat import ChatCompletionMessageParam
 from app.core.chat import ChatMessage, ChatRole
@@ -20,6 +20,8 @@ Rules:
 4. Do not invent source numbers. Only cite numbers that actually appear in the sources below.
 5. Write in clear, direct prose. Do not restate the sources verbatim — synthesize them into an answer.
 6. When a table helps answer the question or the user requests one, use a Markdown table with a header and separator row. Never use ASCII box drawings, aligned plain-text columns, or wrap a table in a code fence. Keep citations inside the relevant cells.
+7. Highlight important keywords and terms using Markdown bold with double asterisks, such as **key term**. Emphasize only the most useful words, not entire paragraphs.
+8. Prefer clear, well-written Markdown bullet points using hyphens when organizing explanations, with each bullet conveying a complete, meaningful point. Use prose or another format when it better suits the question or the user's instructions. Keep citations next to the claims they support.
 
 Example of correct citation style:
 "The engine relies on a turbocharger for increased power [2], though this comes at the cost of higher fuel consumption under load [1][4]."
@@ -53,6 +55,7 @@ def generate_answer(chat_request: ChatRequest, retrieved_chunks: list[Chunk], hi
         model = settings.openrouter_chat_model,
         messages=messages_list,
         max_tokens=800,
+        extra_body=openrouter_extra_body(model=settings.openrouter_chat_model),
     )
 
     answer_content = chat_completion.choices[0].message.content
@@ -138,7 +141,7 @@ Source previews:
         ],
         max_tokens=500,
         response_format={"type": "json_object"},
-        extra_body={"provider": {"require_parameters": True}},
+        extra_body=openrouter_extra_body(model=settings.openrouter_chat_model, require_parameters=True),
     )
 
     answer = completion.choices[0].message.content

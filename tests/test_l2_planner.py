@@ -37,6 +37,26 @@ class L2PlannerTests(unittest.IsolatedAsyncioTestCase):
             plan = await l2.l2_planner(ChatRequest(notebook_id="test", query="Question"))
         self.assertEqual(plan.query_list, ["Question?"])
 
+    async def test_alternative_question_list_key_is_accepted(self):
+        completion = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+            content='{"question_list": ["What does the source say?"]}'
+        ))])
+        with patch.object(l2, "notebook_summaries", {}), patch.object(
+            l2.client.chat.completions, "create", return_value=completion
+        ):
+            plan = await l2.l2_planner(ChatRequest(notebook_id="test", query="Question"))
+        self.assertEqual(plan.query_list, ["What does the source say?"])
+
+    async def test_invalid_planner_response_has_readable_error(self):
+        completion = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+            content='{"question_list": "not a list"}'
+        ))])
+        with patch.object(l2, "notebook_summaries", {}), patch.object(
+            l2.client.chat.completions, "create", return_value=completion
+        ):
+            with self.assertRaisesRegex(ChatError, "invalid list of questions"):
+                await l2.l2_planner(ChatRequest(notebook_id="test", query="Question"))
+
     async def test_empty_completion_raises_chat_error(self):
         completion = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=None))])
         with patch.object(l2, "get_notebook", return_value=None), patch.object(

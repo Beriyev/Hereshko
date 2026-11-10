@@ -23,6 +23,7 @@ const elements = {
   sourceEmpty: document.getElementById("sourceEmpty"),
   sourcePreview: document.getElementById("sourcePreview"),
   sourcePreviewTitle: document.getElementById("sourcePreviewTitle"),
+  sourcePreviewMetadata: document.getElementById("sourcePreviewMetadata"),
   sourcePreviewText: document.getElementById("sourcePreviewText"),
   indexHealth: document.getElementById("indexHealth"),
   indexHealthBar: document.getElementById("indexHealthBar"),
@@ -55,9 +56,38 @@ function showToast(message) {
   toastTimer = setTimeout(() => elements.toast.classList.remove("show"), 2300);
 }
 
-function showBottomPanel(title, text) {
+function showBottomPanel(title, text, citation = null) {
   elements.sourcePreviewTitle.textContent = title;
   elements.sourcePreviewText.textContent = text;
+  const metadata = elements.sourcePreviewMetadata;
+  metadata.replaceChildren();
+  const details = [];
+  if (citation?.source_type) details.push(citation.source_type.toUpperCase());
+  if (citation?.page_number != null) details.push(`Page ${citation.page_number}`);
+  if (citation?.paragraph_index != null) details.push(`Paragraph ${citation.paragraph_index}`);
+  if (citation?.slide_number != null) details.push(`Slide ${citation.slide_number}`);
+  if (citation?.timestamp_seconds != null && Number.isFinite(citation.timestamp_seconds) && citation.timestamp_seconds >= 0) {
+    const seconds = Math.floor(citation.timestamp_seconds);
+    const time = seconds >= 3600
+      ? `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
+      : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    details.push(`Timestamp ${time}`);
+  }
+  if (details.length) metadata.appendChild(document.createTextNode(details.join(" · ")));
+  if (citation?.source_url) {
+    try {
+      const url = new URL(citation.source_url);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        const link = document.createElement("a");
+        link.href = url.href;
+        link.textContent = citation.source_url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        metadata.appendChild(link);
+      }
+    } catch { /* Ignore invalid source URLs. */ }
+  }
+  metadata.hidden = !metadata.hasChildNodes();
   elements.sourcePreview.hidden = false;
   elements.sourcePreview.classList.remove("preview-enter");
   requestAnimationFrame(() => elements.sourcePreview.classList.add("preview-enter"));
@@ -123,12 +153,12 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function streamText(target, text, formatted = false) {
+async function streamText(target, text, formatted = false, citations = []) {
   target.replaceChildren();
   target.classList.add("stream-cursor", "streaming-reveal");
 
   if (formatted) {
-    renderFormattedText(target, text);
+    renderFormattedText(target, text, citations);
     [...target.children].forEach((element) => element.classList.add("stream-block"));
   } else {
     const blocks = text.split(/\n{2,}/).filter((block) => block.trim());
@@ -157,7 +187,7 @@ async function streamText(target, text, formatted = false) {
   [...target.children].forEach((element) => element.classList.remove("stream-block"));
 }
 
-function renderFormattedText(target, text) {
+function renderFormattedText(target, text, citations = []) {
   target.replaceChildren();
   let usedMarkdownRenderer = false;
 
@@ -174,8 +204,8 @@ function renderFormattedText(target, text) {
     renderBasicFormatting(target, text);
   }
 
+  if (citations.length) decorateCitationMarkers(target, citations);
   if (usedMarkdownRenderer) {
-    decorateCitationMarkers(target);
     decorateTables(target);
   }
 
@@ -218,20 +248,12 @@ function renderBasicFormatting(target, text) {
       return;
     }
 
-    if (/^\[\d+\]$/.test(token)) {
-      const strong = document.createElement("strong");
-      const underline = document.createElement("u");
-      underline.textContent = token;
-      strong.appendChild(underline);
-      target.appendChild(strong);
-      return;
-    }
-
     target.appendChild(document.createTextNode(token));
   });
 }
 
-function decorateCitationMarkers(root) {
+function decorateCitationMarkers(root, citations) {
+  const citationByMarker = new Map(citations.map((citation) => [String(citation.marker), citation]));
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes = [];
   let current;
@@ -240,14 +262,24 @@ function decorateCitationMarkers(root) {
 
   textNodes.forEach((node) => {
     if (!/\[\d+\]/.test(node.nodeValue)) return;
+    if (node.parentElement?.closest("a, button, code, pre, script, style")) return;
 
     const fragment = document.createDocumentFragment();
     node.nodeValue.split(/(\[\d+\])/g).forEach((part) => {
-      if (/^\[\d+\]$/.test(part)) {
-        const marker = document.createElement("strong");
-        const underline = document.createElement("u");
-        underline.textContent = part;
-        marker.appendChild(underline);
+      const match = part.match(/^\[(\d+)\]$/);
+      const citation = match && citationByMarker.get(match[1]);
+      if (citation) {
+        const marker = document.createElement("button");
+        marker.type = "button";
+        marker.className = "citation-marker";
+        marker.textContent = match[1];
+        marker.title = citation.source_name || `Source ${match[1]}`;
+        marker.setAttribute("aria-label", `Open source ${match[1]}: ${marker.title}`);
+        marker.addEventListener("click", () => showBottomPanel(
+          citation.source_name || `Source ${match[1]}`,
+          citation.content || "No chunk text was returned for this citation.",
+          citation,
+        ));
         fragment.appendChild(marker);
       } else if (part) {
         fragment.appendChild(document.createTextNode(part));
@@ -256,25 +288,6 @@ function decorateCitationMarkers(root) {
 
     node.parentNode.replaceChild(fragment, node);
   });
-}
-
-function addCitationCards(row, citations = []) {
-  const sources = document.createElement("div");
-  sources.className = "answer-sources";
-  citations.forEach((citation, index) => {
-    const number = citation.marker || index + 1;
-    const source = document.createElement("button");
-    source.textContent = number;
-    source.title = citation.source_name || `Open source ${number}`;
-    source.addEventListener("click", () => {
-      showBottomPanel(
-        citation.source_name || `Source ${number}`,
-        citation.content || "No chunk text was returned for this citation."
-      );
-    });
-    sources.appendChild(source);
-  });
-  if (citations.length) row.appendChild(sources);
 }
 
 async function apiRequest(path, options = {}) {
@@ -498,10 +511,9 @@ function createL2Panel(row) {
         question.item.classList.remove("is-searching");
         question.status.textContent = "Receiving answer…";
         if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-          await streamText(question.answer, event.answer, true);
+          await streamText(question.answer, event.answer, true, event.sources || []);
         }
-        renderFormattedText(question.answer, event.answer);
-        addCitationCards(question.item, event.sources);
+        renderFormattedText(question.answer, event.answer, event.sources || []);
         question.status.textContent = "Answered";
       } else if (event.type === "synthesizing") {
         heading.textContent = "L2 · Preparing final answer…";
@@ -590,13 +602,12 @@ async function submitPrompt(prompt) {
     const answer = payload.answer || "The notebook returned an empty answer.";
     bubble.classList.remove("typing-bubble");
     bubble.textContent = "";
-    await streamText(bubble, answer, true);
-    renderFormattedText(bubble, answer);
-    addCitationCards(row, payload.sources);
+    await streamText(bubble, answer, true, payload.sources || []);
+    renderFormattedText(bubble, answer, payload.sources || []);
   } catch (error) {
     research?.fail(error.message);
     bubble.classList.remove("typing-bubble");
-    bubble.textContent = `I couldn’t reach the Hereshko backend: ${error.message}`;
+    bubble.textContent = `Chat request failed: ${error.message}`;
     showToast("Chat request failed");
   } finally {
     scrollToLatest();
