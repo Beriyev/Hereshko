@@ -6,13 +6,8 @@ from pydantic import BaseModel
 from app.config import settings
 from app.core.exceptions import HereshkoError
 
-_options = {
-    # Allow the app to start without a key; requests will fail authentication.
-    "api_key": settings.openrouter_api_key.get_secret_value() or "missing-openrouter-api-key",
-    "base_url": "https://openrouter.ai/api/v1",
-}
-openrouter_client = OpenAI(**_options)
-async_openrouter_client = AsyncOpenAI(**_options)
+openrouter_client = OpenAI(api_key=settings.openrouter_api_key.get_secret_value() or "missing-openrouter-api-key",base_url="https://openrouter.ai/api/v1")
+async_openrouter_client = AsyncOpenAI(api_key=settings.openrouter_api_key.get_secret_value() or "missing-openrouter-api-key",base_url="https://openrouter.ai/api/v1")
 
 
 def openrouter_extra_body(*, model: str, require_parameters: bool = False) -> dict:
