@@ -474,3 +474,13 @@ The frontend defaults to `http://localhost:8000`. To override it, set `window.HE
 
 **V1 — current baseline:** notebook management, source ingestion and extraction persistence, conventional RAG, L1/L2 research, optional MCP web evidence, citations, introductory overviews, formatted answers, and GraphWeaver mind maps.
 
+### M2 — planned full-context mode
+
+M2 is a planned alternative to the existing RAG-based chat modes. It will send the complete extracted text of the selected sources to DeepSeek V4.1 Flash 1017 through OpenRouter, so the model can answer questions across those sources without document retrieval for each question.
+
+- Support a small selection of approximately 3–4 sources; the exact maximum remains to be settled. Check the combined token budget against the selected provider's context limit, reserving room for instructions, conversation context, the question, and output. If the sources do not fit, ask the user to select fewer sources or use a RAG mode.
+- Preserve source IDs, titles, and available location metadata, including PDF page mappings, in the supplied text. Prompt the model to cite supporting source locations, and make citations inspectable in the interface. Evaluate citation correctness; model-generated citations are not independently verified by default. Investigate supporting quotations and verification as follow-up improvements.
+- Keep instructions and source text in a stable, consistently ordered prompt prefix, followed by changing conversation context and the question. Use provider-supported prompt/KV caching and a stable OpenRouter session ID to improve reuse. A cache miss or provider switch may require the sources to be processed again; caching is not guaranteed.
+- Record provider, cached-token usage, cost, time to first token, and end-to-end response time. Compare M2 with the existing RAG modes on the same source-grounded questions, measuring answer quality and citation support as well as warm- and cold-cache latency and cost.
+
+M2 is future work, not a currently implemented feature. Its performance and accuracy relative to RAG remain to be measured.
