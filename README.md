@@ -484,3 +484,14 @@ M2 is a planned alternative to the existing RAG-based chat modes. It will send t
 - Record provider, cached-token usage, cost, time to first token, and end-to-end response time. Compare M2 with the existing RAG modes on the same source-grounded questions, measuring answer quality and citation support as well as warm- and cold-cache latency and cost.
 
 M2 is future work, not a currently implemented feature. Its performance and accuracy relative to RAG remain to be measured.
+
+
+### Agentic CAG — planned chapter-based approach
+
+Explore an agentic CAG approach alongside M2 and the existing RAG modes. At ingestion, split sources into stable chapters or bounded sections, preserving source IDs, page markers, content versions, and a hierarchical outline. For a question, an agent selects relevant sections and assigns reading tasks; parallel readers return evidence and citations. The agent checks whether the evidence is sufficient, can select additional sections within a bounded expansion round, and synthesizes a cited answer or identifies remaining gaps.
+
+- Send each section as a stable prompt prefix followed by the changing question and reading task. Use section-specific OpenRouter session IDs to encourage sticky routing and provider-supported prefix caching; neither cache hits nor retention are guaranteed.
+- Warm sections on demand initially, and evaluate proactive priming separately. Log the provider, cached-token coverage, cost, and latency for cold and warm requests.
+- Benchmark section selection, answer quality, citation support, end-to-end latency, and total cost against existing RAG and M2 using the same questions. Keep RAG available while evaluating the approach.
+
+This is proposed future work; cache behavior and performance depend on the selected model and provider and require measurement.
