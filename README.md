@@ -510,3 +510,27 @@ Triad is a separate research system intended to produce source-grounded material
 - Evaluate the existing Triad, shared evidence and compact claims, and the addition of prompt caching against a single-agent baseline with a comparable budget. Measure citation support, coverage, unresolved errors, repeated fetches, token usage, billed cost, and end-to-end latency on fresh, repeated, conflicting, and insufficient-evidence tasks. Independently inspect a sample of outputs.
 
 This architecture is planned, not implemented; improvements in cost, speed, and quality require benchmarking.
+
+
+### Sturgeon — planned web retrieval for Hereshko and Triad
+
+Sturgeon is a planned shared search and extraction service with two output modes:
+
+- **Sturgeon-A:** For Hereshko web research, query SearXNG, take approximately the top 20 results, and rerank each title and description against the query with a cross-encoder. Fetch the top 7 pages concurrently, extract and chunk their text, then rerank the complete set of collected chunks and return the top-k with source URLs, titles, and available section metadata.
+- **Sturgeon-B:** For Triad's agent wiki, use the same search and initial reranking stages, fetch the top 10 pages concurrently, and return their full usable extracted text and source metadata. Store full pages in the shared evidence store, with stable IDs, headings, retrieval timestamps, and content hashes. Flag failed or incomplete extractions.
+
+These counts are configurable starting points, not measured optima. The initial snippet ranking can miss relevant pages whose descriptions are uninformative. Keep remaining results as backups for failed fetches, subject to a request-wide deadline and page budget.
+
+#### Cost and latency design
+
+- Batch Triad research questions, deduplicate identical queries and selected URLs, and share in-flight page fetches. Retain query-specific relevance information. Apply a global unique-page budget across questions.
+- Cache search results by query and search configuration, extracted pages by conservatively normalized URL and freshness, processed sections by content hash and extraction version, and reranker scores by query, content, and model configuration. Use shorter freshness periods for time-sensitive sources.
+- Use a persistent async HTTP client, bounded global and per-host concurrency, per-request timeouts, and a whole-request deadline. Extract and section each page as it arrives; A runs its final rerank after the selected fetches complete or the deadline expires. Use browser rendering only as a bounded fallback.
+- Load a compact reranker once, batch inputs, and benchmark model, backend, token limits, and CPU worker settings. Offload blocking extraction and inference from the event loop with bounded workers.
+- Preserve full source text separately from a deterministic wiki index of source IDs, titles, headings, and section locations. Supply shared or team-specific evidence packages to agents based on the task; avoid mandatory LLM rewriting of every page. Freeze evidence snapshots per round.
+- Keep stable, consistently serialized evidence prefixes ahead of changing role tasks. Test OpenRouter session-based sticky routing and provider-supported prompt caching; record cached tokens, provider, write charges, cost, and latency. A structured store is not itself a provider KV cache, and cache hits are not guaranteed.
+- Have agents exchange compact findings with source and passage IDs, uncertainty, and unresolved questions. Critics inspect underlying passages; the final critic reconciles team outputs and sends specific conflicts back to responsible teams.
+
+#### Evaluation
+
+Benchmark search-order selection against snippet reranking and a mixed strategy; compare candidate and page budgets. Measure relevant-source coverage, extraction success, grounded answer quality, citation support, repeated fetches, total token and monetary cost, and p50/p95 end-to-end latency. Compare cold and warm runs, and full-wiki versus team-specific evidence packages. These are planned features; performance improvements must be established by measurement.
