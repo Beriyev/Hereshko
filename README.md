@@ -495,3 +495,18 @@ Explore an agentic CAG approach alongside M2 and the existing RAG modes. At inge
 - Benchmark section selection, answer quality, citation support, end-to-end latency, and total cost against existing RAG and M2 using the same questions. Keep RAG available while evaluating the approach.
 
 This is proposed future work; cache behavior and performance depend on the selected model and provider and require measurement.
+
+
+### Triad — planned shared evidence and coordinated research
+
+Triad is a separate research system intended to produce source-grounded material for Hereshko; it is not part of Hereshko's L3 pipeline. Retain the parallel teams and their researcher, critic, and orator roles, with a final critic to reconcile their work.
+
+- Maintain a persistent, structured evidence store, initially potentially SQLite: versioned sources and extracted text, passages with stable IDs and locations, claims with evidence links, review verdicts, and versioned research packages. Keep original evidence separate from agent summaries and conclusions. Track source URL, retrieval time, content hash, and freshness.
+- Plan distinct team scopes and search queries, then deterministically check stored material, search for gaps, fetch and extract sources concurrently, and deduplicate URLs and duplicate content. Share in-flight fetches so teams do not download the same source repeatedly.
+- Assemble focused, consistently ordered evidence packages for each team. Small tasks may use a shared package; larger tasks should avoid sending the entire store to every agent. Allow one bounded round of additional retrieval for missing, conflicting, or contrary evidence.
+- Have researchers produce compact claims linked to passage IDs. Critics assess support, qualifications, contradictions, and gaps against the underlying source passages. Validate IDs and exact quotations in code; those checks do not establish that the evidence entails a claim.
+- Merge reviewed claims and send them to the final critic for cross-team consistency and coverage. Return a specific conflict only to the responsible teams for a bounded repair round; preserve unresolved uncertainty. Orators render the reconciled findings for ingestion into Hereshko.
+- Serialize each frozen research package as a stable prompt prefix, with role-specific instructions and changing claims afterward. Investigate provider-supported KV/prompt caching and OpenRouter session-based sticky routing. The database is persistent application storage; the KV cache is a temporary provider-side optimization and is not a queryable database. Cache hits, retention, and sharing across requests are not guaranteed. Log provider, cached tokens, cost, and latency, and measure cold and warm runs before adding deliberate cache warming.
+- Evaluate the existing Triad, shared evidence and compact claims, and the addition of prompt caching against a single-agent baseline with a comparable budget. Measure citation support, coverage, unresolved errors, repeated fetches, token usage, billed cost, and end-to-end latency on fresh, repeated, conflicting, and insufficient-evidence tasks. Independently inspect a sample of outputs.
+
+This architecture is planned, not implemented; improvements in cost, speed, and quality require benchmarking.
