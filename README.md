@@ -497,6 +497,22 @@ Explore an agentic CAG approach alongside M2 and the existing RAG modes. At inge
 This is proposed future work; cache behavior and performance depend on the selected model and provider and require measurement.
 
 
+
+#### Topic and concept navigation for presentations
+
+Build a cached navigation map at ingestion to direct agentic hybrid retrieval across a presentation. This extends the planned agentic CAG exploration; it is future work, not part of the current PPTX ingestion pipeline.
+
+1. Parse the PPTX with Docling, preserving slide IDs, slide numbers, titles, extracted content, and source provenance. Docling supplies structural elements; it does not reliably infer semantic topics. Inspect extraction quality, especially for visual diagrams and slide layout.
+2. Send slide titles and compact content excerpts to a small LLM to propose topic groups with slide IDs and descriptions. A slide may be linked to multiple topics without duplicating its underlying content. Validate the response schema and slide references in code, and ensure all slides are accounted for.
+3. Send each topic slice's slide content to a small LLM using an async client, with bounded concurrency, timeouts, rate-limit handling, and retries for failed slices. Batch very small topics when useful. Generate a concept hierarchy with short descriptions and references to supporting slide IDs.
+4. Validate each tree and assemble the topic trees under a single presentation root. Reconcile or cross-reference overlapping concepts across branches when useful; preserve unresolved ambiguity. Persist a versioned navigation map, with links to the original extracted slides and retrieval chunks.
+5. Index searchable child chunks with slide and topic metadata. For a question, provide the relevant cached map to the agent so it can identify useful topics and formulate queries for the normal hybrid search. Retrieve evidence chunks and their slide parents for context and citations. Retain an unfiltered search fallback when map-based selection misses relevant material.
+
+Keep source content separate from LLM-generated descriptions: map nodes guide search, while retrieved source passages ground answers. If grouping or tree generation fails validation, preserve slide-level indexing and retry the failed work rather than blocking search. Application-side map caching is distinct from provider-side prompt/KV caching, which depends on provider support and is not guaranteed.
+
+Evaluate topic and concept coverage, source-link accuracy, retrieval recall, citation support, ingestion cost and latency, and end-to-end answer quality against the existing retrieval baseline. Compare focused filtering or boosting with unfiltered search, especially for broad, cross-topic, and poorly structured slides.
+
+
 ### Triad — planned shared evidence and coordinated research
 
 Triad is a separate research system intended to produce source-grounded material for Hereshko; it is not part of Hereshko's L3 pipeline. Retain the parallel teams and their researcher, critic, and orator roles, with a final critic to reconcile their work.
